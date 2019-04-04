@@ -1,4 +1,4 @@
-"""This file contains useful function to perform convolutions"""
+"""This file contains useful functions to perform convolutions"""
 
 __all__ = ['fastconv_scipy', 'fastconv_fftw']
 
@@ -163,7 +163,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     fft_sig(normalise_idft=True)
     assert np.allclose(X[:fast_chunk_len], fft(signal[0:0+chunksize], fast_chunk_len))
 
-    # Check that forward and reverse FFTs are identical
+    # Check that we get the signal back when taking the IFFT of the FFT
     xfd = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
     xback = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
     fft_sig_backward = pyfftw.FFTW( xfd, xback, 
@@ -177,7 +177,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
 
     y[..., :M] = kernel
     # Notice that once we take the FFT of the kernel, we never have to
-    # do it again! Just multiply with each signal's FFT chunk. This saves
+    # do it again! Just multiply with the FFT of each chunk. This saves
     # us computation
     fft_kernel()
     assert np.allclose(Y, fft(kernel, fast_chunk_len))
@@ -196,10 +196,10 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     starts = range(0, N, chunksize)
     for start in starts:
         length = min(chunksize, N - start)
-        x[..., :length] = signal[..., start:start+chunksize]
-        fft_sig(normalize_idft=True)
+        x[..., :length] = signal[..., start:start+length]
+        fft_sig(normalise_idft=True)
         conv_fd[...] = Y * X
-        fft_conv_inv(normalize_idft=True)
+        fft_conv_inv(normalise_idft=True)
         res[..., start:start+length+M-1] += conv_td[..., :length+M-1]
         # If variable chunksizes are used, we should do:
         # (1) x[..., :length] = signal[..., start:start+chunksize]

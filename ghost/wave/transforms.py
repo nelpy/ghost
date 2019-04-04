@@ -11,8 +11,8 @@ from multiprocessing.pool import ThreadPool
 from . import wavelet as wav
 from . import morlet
 from .. import sigtools
-from .. import preprocessing as pre
-from .. import postprocessing as post
+from ..formats import preprocessing as pre
+from ..formats import postprocessing as post
 
 try:
     import nelpy as nel

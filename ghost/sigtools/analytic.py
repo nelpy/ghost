@@ -12,8 +12,11 @@ except:
 
 __all__ = ['analytic_signal_scipy', 'analytic_signal_fftw']
 
-def analytic_signal_scipy(signal):
-    pass
+def analytic_signal_scipy(*args):
+    # forward along to scipy's hilbert for now but later
+    # should make this version's interface and functionality
+    # similar to analytic_signal_fftw i.e. automatic padding
+    return hilbert(args)
 
 
 def analytic_signal_fftw(signal):
