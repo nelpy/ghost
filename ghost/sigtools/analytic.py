@@ -65,7 +65,7 @@ def analytic_signal_fftw(signal):
     # so we can compute an in-place FFT to save memory
     afd = pyfftw.zeros_aligned(fast_len, dtype='complex128')
     atd = pyfftw.zeros_aligned(fast_len, dtype='complex128')
-    fft_analytic = pyfftw.FFTW( afd, atd,
+    fft_analytic_inv = pyfftw.FFTW( afd, atd,
                            direction='FFTW_BACKWARD',
                            flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'], 
                            threads=cpu_count(),
@@ -84,6 +84,6 @@ def analytic_signal_fftw(signal):
         afd[fast_len // 2] = xfd[-1]
         afd[1:fast_len // 2] = 2*xfd[1:-1]
         
-    fft_analytic(normalise_idft=True)
+    fft_analytic_inv(normalise_idft=True)
 
     return atd[..., :L]
