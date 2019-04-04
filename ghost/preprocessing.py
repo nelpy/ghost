@@ -33,25 +33,22 @@ def standardize_1d_asa(obj, *, lengths=None):
     """
 
     try:
-        res = isinstance(obj, nel.RegularlySampledAnalogSignalArray)
-        if res is False:
-            raise TypeError("Input object is of type {} but expected"
-                            "a nelpy.RegularlySampledAnalogSignalArray".
-                            format(type(obj)))
-        if obj.n_signals != 1:
-            raise ValueError("Input object must have only one signal")
+        if isinstance(obj, nel.RegularlySampledAnalogSignalArray):
+            if obj.n_signals != 1:
+                raise ValueError("Input object must have only one signal")
 
-        if lengths is not None:
-            warnings.warn("'Lengths' was passed in, but will be overwritten",
-                            " by the nelpy object's 'lengths' attribute")
+            if lengths is not None:
+                warnings.warn("'Lengths' was passed in, but will be overwritten",
+                                " by the nelpy object's 'lengths' attribute")
             
-        return obj.data.squeeze(), obj.lengths
+            return obj.data.squeeze().copy(), obj.lengths
     except NameError:
         # User doesn't have nelpy installed, continue on
         pass
 
     if not isinstance(obj, np.ndarray):
-        raise TypeError("Input must be a numpy array")
+        raise TypeError("Input was not a nelpy.RegularlySampledAnalogSignalArray"
+                        " so expected a numpy ndarray but got {}".format(type(obj)))
 
     # If we made it this far, we know the obj is a valid numpy array
     out = obj.squeeze()
@@ -62,4 +59,4 @@ def standardize_1d_asa(obj, *, lengths=None):
     if np.sum(lengths) != out.size:
         raise ValueError("Lengths must sum to {} but got {}".format(out.size, np.sum(lengths)))
 
-    return out, lengths
+    return out.copy(), lengths

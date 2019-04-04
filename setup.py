@@ -22,13 +22,13 @@ from distutils.util import convert_path
 setup(
     name='ghost',
     # version=main_ns['__version__'],
-    # url='https://github.com/nelpy/nelpy/ghost/',
+    # url='https://github.com/nelpy/ghost/',
     # download_url = 'https://github.com/nelpy/ghost/' + main_ns['__version__'],
     license='MIT License',
     author='Joshua Chu',
     install_requires=['numpy>=1.11.0',
-                    'scipy>=0.17.0',   # need to check minimum version
-                    'matplotlib>=1.5.0'],
+                      'scipy>=0.17.0',   # need to check minimum version
+                      'matplotlib>=1.5.0'],
     author_email='jpc6@rice.edu',
     description='Numpy and nelpy compatible spectral analysis toolbox',
     # long_description=long_description,
