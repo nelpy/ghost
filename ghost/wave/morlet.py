@@ -71,10 +71,10 @@ class Morlet(Wavelet):
         w0 = self._w0
 
         # Sample wavelet and normalize
-        motherwav = np.pi**(-0.25) * np.exp(-1/2*eta**2) * (np.exp(1j*w0*eta) - np.exp(-1/2*w0**2))
+        scaledwav = np.pi**(-0.25) * np.exp(-1/2*eta**2) * (np.exp(1j*w0*eta) - np.exp(-1/2*w0**2))
         normconst = (dt / self._scale) ** .5
         
-        self._time_repr =  motherwav * normconst
+        self._time_repr =  scaledwav * normconst
 
     def _recompute(self):
         self._compute_time_repr()
