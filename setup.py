@@ -28,9 +28,7 @@ setup(
     author='Joshua Chu',
     install_requires=['numpy>=1.11.0',
                     'scipy>=0.17.0',   # need to check minimum version
-                    'matplotlib>=1.5.0',
-                    'nelpy',
-                    ],
+                    'matplotlib>=1.5.0'],
     author_email='jpc6@rice.edu',
     description='Numpy and nelpy compatible spectral analysis toolbox',
     # long_description=long_description,
