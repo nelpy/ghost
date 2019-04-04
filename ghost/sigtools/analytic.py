@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.signal import hilbert
+from scipy.fftpack import next_fast_len
 from multiprocessing import cpu_count
 
 try:
@@ -11,7 +12,7 @@ except:
 
 __all__ = ['analytic_signal_scipy', 'analytic_signal_fftw']
 
-def analytic_signal_scipy():
+def analytic_signal_scipy(signal):
     pass
 
 
@@ -30,11 +31,11 @@ def analytic_signal_fftw(signal):
     A 1D array containing the analytic signal
     """
     
-    if np.iscomplexobj(x):
+    if np.iscomplexobj(signal):
         raise ValueError("The input data must be real")
     
     # use size because empty arrays can still have non-zero shapes
-    if x.size == 0: 
+    if signal.size == 0: 
         raise ValueError("Cannot compute analytic signal on an empty array")
 
     if signal.ndim != 1:
