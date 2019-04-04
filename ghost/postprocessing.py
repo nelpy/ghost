@@ -15,7 +15,7 @@ def output_numpy_or_asa(obj, data, *, output_type=None, labels=None):
     Parameters
     ----------
     obj : numpy.ndarray or a nelpy object
-    data : numpy.ndarray
+    data : numpy.ndarray, with shape (n_samples, n_signals)
         Data is either passed through as the np.ndarray
         or used to form a nelpy object, depending on 'output_type'.
     output_type : string, optional
@@ -28,7 +28,8 @@ def output_numpy_or_asa(obj, data, *, output_type=None, labels=None):
     
     Returns
     -------
-    Output object of the specified type
+    Output object of the specified type. If a numpy array, it will
+    have shape (n_samples, n_signals)
     """
     
     if not isinstance(data, np.ndarray):
@@ -46,7 +47,8 @@ def output_numpy_or_asa(obj, data, *, output_type=None, labels=None):
                 raise TypeError("You specified output type {} but the input"
                                 " object was not a nelpy object. Cannot form an"
                                 " ASA around the input object".format(output_type))
-            out = nel.AnalogSignalArray(data,
+            # Transpose data since ASAs have shape (n_signals, n_samples)
+            out = nel.AnalogSignalArray(data.T,
                                 abscissa_vals=obj.abscissa_vals,
                                 fs=obj.fs,
                                 support=obj.support, 
@@ -55,4 +57,5 @@ def output_numpy_or_asa(obj, data, *, output_type=None, labels=None):
         except NameError:
             raise ModuleNotFoundError("You must have nelpy installed for"
                                           " output type {}".format(output_type))
+    
     return data

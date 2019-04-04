@@ -112,6 +112,7 @@ class ContinuousWaveletTransform(WaveletTransform):
         input_asarray, lengths = pre.standardize_1d_asa(obj, lengths=lengths)
         input_asarray -= np.mean(input_asarray)
         ei = np.insert(np.cumsum(lengths), 0, 0) # epoch indices
+        # Set up array as C contiguous since we will be iterating row-by-row
         out_array = np.zeros((len(self.freqs), input_asarray.shape[-1]))
 
         def wavelet_conv(param):
@@ -157,6 +158,6 @@ class ContinuousWaveletTransform(WaveletTransform):
             print("Elapsed time (only wavelet convolution): {} seconds".format(time.time() - start_time))
 
         return post.output_numpy_or_asa(obj, 
-                                        out_array, 
+                                        out_array.T,
                                         output_type=output, 
                                         labels=self.freqs)

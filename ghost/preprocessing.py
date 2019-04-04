@@ -33,19 +33,20 @@ def standardize_1d_asa(obj, *, lengths=None):
     """
 
     try:
-        if not isinstance(obj, nel.RegularlySampledAnalogSignalArray):
+        res = isinstance(obj, nel.RegularlySampledAnalogSignalArray)
+        if res is False:
             raise TypeError("Input object is of type {} but expected"
                             "a nelpy.RegularlySampledAnalogSignalArray".
                             format(type(obj)))
-            if obj.n_signals != 1:
-                raise ValueError("Input object must have only one signal")
+        if obj.n_signals != 1:
+            raise ValueError("Input object must have only one signal")
 
-            if lengths is not None:
-                warnings.warn("'Lengths' was passed in, but will be overwritten",
-                              " by the nelpy object's 'lengths' attribute")
+        if lengths is not None:
+            warnings.warn("'Lengths' was passed in, but will be overwritten",
+                            " by the nelpy object's 'lengths' attribute")
             
-            return obj.data.squeeze(), obj.lengths
-    except:
+        return obj.data.squeeze(), obj.lengths
+    except NameError:
         # User doesn't have nelpy installed, continue on
         pass
 

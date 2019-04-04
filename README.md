@@ -15,3 +15,22 @@ To install this package, please clone this repo and run
 If you are a developer, run
 
 ```python setup.py develop```
+
+## Example
+
+Suppose you have a numpy array x on which you want to run a continuous wavelet transform:
+
+```import ghost.wave
+fs = 1000
+wt = ghost.wave.ContinuousWaveletTransform()
+spec = wt.cwt(x, fs=fs)
+```
+
+If you have a nelpy AnalogSignalArray, you can do:
+
+```import ghost.wave
+wt = ghost.wave.ContinuousWaveletTransform()
+spec = wt.cwt(x, fs=x.fs, output='asa')
+```
+
+And that's it! Short and simple.
