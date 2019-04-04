@@ -135,9 +135,9 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
                              "the input is shorter than the kernel")
 
     if chunksize is None:
-        chunksize = np.minimum(len(signal), 30000)
+        chunksize = min(len(signal), 30000)
 
-    fast_chunk_len = next_fast_len(chunksize + M - 1)
+    fast_chunk_len = pyfftw.next_fast_len(chunksize + M - 1)
 
     # The convention in many textbooks is to write the time-domain
     # signal as lower-case and the Fourier Transform as capital-case
@@ -160,7 +160,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     
     # Quick sanity checks that we're using FFTW correctly
     x[..., :chunksize] = signal[0:0+chunksize]
-    fft_sig()
+    fft_sig(normalise_idft=True)
     assert np.allclose(X[:fast_chunk_len], fft(signal[0:0+chunksize], fast_chunk_len))
 
     # Check that forward and reverse FFTs are identical
@@ -171,11 +171,11 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
                            flags=['FFTW_ESTIMATE'], 
                            threads=cpu_count(), 
                            planning_timelimit=5 )
-    xfd[:] = X
-    fft_sig_backward()
+    xfd[...] = X
+    fft_sig_backward(normalise_idft=True)
     assert np.allclose(xback[:chunksize], x[:chunksize])
 
-    y[..., :len(kernel)] = kernel
+    y[..., :M] = kernel
     # Notice that once we take the FFT of the kernel, we never have to
     # do it again! Just multiply with each signal's FFT chunk. This saves
     # us computation
@@ -184,22 +184,33 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
 
     conv_fd = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
     conv_td = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
+    # We don't care about saving the result of the convolution in the
+    # frequency domain so we do an in-place FFT here to save memory
     fft_conv_inv = pyfftw.FFTW(conv_fd, conv_td, 
                           direction='FFTW_BACKWARD', 
-                          flags=['FFTW_ESTIMATE'], 
+                          flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'], 
                           threads=cpu_count(), 
                           planning_timelimit=5 )
 
     res = np.zeros(tot_length, dtype='<c16')
-    starts = range(0, signal.shape[-1], chunksize)
-    for ii, start in enumerate(starts):
-        length = np.minimum(chunksize, len(signal) - start)
-        x[..., :length] = signal[start:start+chunksize]
-        x[length:] = 0
-        fft_sig()
-        conv_fd[:] = Y * X
-        fft_conv_inv()
-        res[start:start+length+M-1] += conv_td[:length+M-1]
+    starts = range(0, N, chunksize)
+    for start in starts:
+        length = min(chunksize, N - start)
+        x[..., :length] = signal[..., start:start+chunksize]
+        fft_sig(normalize_idft=True)
+        conv_fd[...] = Y * X
+        fft_conv_inv(normalize_idft=True)
+        res[..., start:start+length+M-1] += conv_td[..., :length+M-1]
+        # If variable chunksizes are used, we should do:
+        # (1) x[..., :length] = signal[..., start:start+chunksize]
+        # (2) x[..., length:] = 0
+        # This ensures the input data buffer for the FFT on iteration
+        # i gets completely overwritten by the data on iteration i+1
+        # (and any extra space in the buffer is filled with 0).
+        # Variable length chunksizes only occur on the very last iteration
+        # and so we don't need to bother with (2) because we aren't
+        # taking the FFT another time. Eliminating the unecessary operation
+        # thus saves us some computation.
 
     if mode == 'full':
         newsize = tot_length

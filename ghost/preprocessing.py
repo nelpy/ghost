@@ -7,9 +7,9 @@ try:
 except:
     pass
 
-__all__ = ['standardize_1d_asa']
+__all__ = ['standard_format_1d_asa']
 
-def standardize_1d_asa(obj, *, lengths=None):
+def standard_format_1d_asa(obj, *, lengths=None):
     """This function takes in an object and outputs a numpy array along with
        the lengths, which specify the blocksize (in elements) of the data
        that should be treated as a contiguous segment.

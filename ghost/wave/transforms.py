@@ -66,8 +66,9 @@ class ContinuousWaveletTransform(WaveletTransform):
             single process, multithreaded model.
             Default is False.
         backend : string, optional
-            FFT backend to use. 'scipy' or 'fftw'
-            Default is 'scipy', which uses scipy's fftpack
+            FFT backend to use. 'fftw' or 'scipy', which uses scipy's fftpack.
+            Default is 'fftw'. If pyfftw is not installed, then the function
+            automatically falls back to scipy.
         verbose : boolean, optional
             Whether to print messages displaying this function's progress.
             Default is False.
@@ -96,20 +97,25 @@ class ContinuousWaveletTransform(WaveletTransform):
             raise ValueError("'parallel' must be either True or False")
 
         if backend is None:
-            backend = 'scipy'
+            backend = 'fftw'
         if not backend in ('scipy', 'fftw'):
             raise ValueError("FFT backend '{}' is not valid".format(backend))
         if backend == 'scipy':
             convfun = sigtools.fastconv_scipy
         if backend == 'fftw':
-            convfun = sigtools.fastconv_fftw
+            try:
+                import pyfftw
+                convfun = sigtools.fastconv_fftw
+            except:
+                warnings.warn("Module 'pyfftw' not found, using scipy backend")
+                convfun = sigtools.fastconv_scipy
 
         if verbose is None:
             verbose = False
         if verbose not in (True, False):
             raise ValueError("'verbose' must be either True or False")
 
-        input_asarray, lengths = pre.standardize_1d_asa(obj, lengths=lengths)
+        input_asarray, lengths = pre.standard_format_1d_asa(obj, lengths=lengths)
         input_asarray -= np.mean(input_asarray)
         ei = np.insert(np.cumsum(lengths), 0, 0) # epoch indices
         # Set up array as C contiguous since we will be iterating row-by-row
