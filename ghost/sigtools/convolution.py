@@ -15,7 +15,8 @@ try:
 except:
     pass
 
-def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
+def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None,
+                   fft_length=None):
     """Computes a convolution with scipy's fftpack, using the
     convolution theorem. This function is more memory efficient
     than computing the convolution on the entire data at once.
@@ -33,6 +34,11 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
         The chunksize to use for the signal when performing
         the convolution.
         Default is 30000.
+    fft_length : float, optional
+        FFT length to use when computing the convolution
+        If the length of the signal is N and the length of
+        the kernel is M, then the default is
+        next_fast_len(N + M - 1)
 
     Returns
     -------
@@ -60,10 +66,19 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
     if chunksize is None:
         chunksize = min(N, 30000)
 
+    if fft_length is None:
+        fft_length = next_fast_len(chunksize + M - 1)
+
+    if chunksize + M - 1 > fft_length:
+        raise ValueError("The fft_lengthen of {} is not large"
+                         " enough to do the convolution properly")
+
     res = np.zeros(tot_length, dtype='<c16')
     starts = range(0, N, chunksize)
     for start in starts:
-        conv_chunk = fftconvolve(signal[start:start+chunksize], kernel)
+        conv_fd = (fft(signal[start:start+chunksize], n=fft_length) 
+                   * fft(kernel, n=fft_length))
+        conv_chunk = ifft(conv_fd)[..., :chunksize + M - 1]
         res[start:start+len(conv_chunk)] += conv_chunk
         # Usually the cache is to blame for memory errors
         clean_scipy_cache()
@@ -78,7 +93,8 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
     
     return res[..., st_ind:st_ind+newsize]
 
-def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
+def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None, 
+                  fft_length=None):
     """Computes a convolution with FFTW, using the convolution
     theorem. This function has been written to minimize memory
     usage.
@@ -96,6 +112,11 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
         The chunksize to use for the signal when performing
         the convolution.
         Default is 30000.
+    fft_length : float, optional
+        FFT length to use when computing the convolution
+        If the length of the signal is N and the length of
+        the kernel is M, then the default is
+        next_fast_len(N + M - 1)
 
     Returns
     -------
@@ -123,21 +144,26 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     if chunksize is None:
         chunksize = min(N, 30000)
 
-    fast_chunk_len = pyfftw.next_fast_len(chunksize + M - 1)
+    if fft_length is None:
+        fft_length = next_fast_len(chunksize + M - 1)
+
+    if chunksize + M - 1 > fft_length:
+        raise ValueError("The fft_lengthen of {} is not large"
+                         " enough to do the convolution properly")
 
     # The convention in many textbooks is to write the time-domain
     # signal as lower-case and the Fourier Transform as capital-case
     # so we will follow that here
-    x = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
-    X = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
+    x = pyfftw.zeros_aligned(fft_length, dtype='complex128')
+    X = pyfftw.zeros_aligned(fft_length, dtype='complex128')
     fft_sig = pyfftw.FFTW( x, X, 
                            direction='FFTW_FORWARD',
                            flags=['FFTW_ESTIMATE'], 
                            threads=cpu_count(), 
                            planning_timelimit=5 )
 
-    y = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
-    Y = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
+    y = pyfftw.zeros_aligned(fft_length, dtype='complex128')
+    Y = pyfftw.zeros_aligned(fft_length, dtype='complex128')
     fft_kernel = pyfftw.FFTW( y, Y, 
                               direction='FFTW_FORWARD', 
                               flags=['FFTW_ESTIMATE'], 
@@ -147,12 +173,12 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     # Quick sanity checks that we're using FFTW correctly
     x[..., :chunksize] = signal[..., :chunksize]
     fft_sig(normalise_idft=True)
-    assert np.allclose(X[..., :fast_chunk_len],
-                       fft(signal[..., :chunksize], fast_chunk_len))
+    assert np.allclose(X[..., :fft_length],
+                       fft(signal[..., :chunksize], fft_length))
 
     # Check that we get the signal back when taking the IFFT of the FFT
-    xfd = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
-    xback = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
+    xfd = pyfftw.zeros_aligned(fft_length, dtype='complex128')
+    xback = pyfftw.zeros_aligned(fft_length, dtype='complex128')
     fft_sig_backward = pyfftw.FFTW( xfd, xback, 
                            direction='FFTW_BACKWARD',
                            flags=['FFTW_ESTIMATE'], 
@@ -167,13 +193,13 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     # do it again! Just multiply with the FFT of each chunk. This saves
     # us computation
     fft_kernel()
-    assert np.allclose(Y, fft(kernel, fast_chunk_len))
+    assert np.allclose(Y, fft(kernel, fft_length))
 
     # We don't care about the convolution looks like in the frequency
     # domain so we can compute an in-place FFT to save memory (and
     # potentially computation time)
-    conv_fd = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
-    conv_td = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
+    conv_fd = pyfftw.zeros_aligned(fft_length, dtype='complex128')
+    conv_td = pyfftw.zeros_aligned(fft_length, dtype='complex128')
     fft_conv_inv = pyfftw.FFTW(conv_fd, conv_td,
                           direction='FFTW_BACKWARD', 
                           flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'], 
