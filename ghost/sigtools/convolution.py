@@ -15,8 +15,7 @@ try:
 except:
     pass
 
-def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None,
-                   fft_length=None):
+def fastconv_scipy(signal, kernel, *, mode=None, fft_length=None):
     """Computes a convolution with scipy's fftpack, using the
     convolution theorem. This function is more memory efficient
     than computing the convolution on the entire data at once.
@@ -30,15 +29,11 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None,
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
-    chunksize : float, optional
-        The chunksize to use for the signal when performing
-        the convolution.
-        Default is 30000.
     fft_length : float, optional
-        FFT length to use when computing the convolution
-        If the length of the signal is N and the length of
-        the kernel is M, then the default is
-        next_fast_len(N + M - 1)
+        FFT length to use when computing the convolution.
+        Default is 16384; if the kernel is larger than this,
+        than the closest power of 4 greater than the kernel
+        length is chosen.
 
     Returns
     -------
@@ -63,22 +58,24 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None,
             raise ValueError("Cannot do a 'valid' convolution because "
                              "the input is shorter than the kernel")
 
-    if chunksize is None:
-        chunksize = min(N, 30000)
+    if fft_length is not None:
+        if fft_length < M:
+            raise ValueError("FFT length must be at least the kernel"
+                             " size of {}".format(M))
+    else:   # Choose good fft_length
+        fft_length = 16384
+        while fft_length < M:
+            fft_length *= 4
 
-    if fft_length is None:
-        fft_length = next_fast_len(chunksize + M - 1)
-
-    if chunksize + M - 1 > fft_length:
-        raise ValueError("The fft_lengthen of {} is not large"
-                         " enough to do the convolution properly")
+    chunksize = fft_length - M + 1
 
     res = np.zeros(tot_length, dtype='<c16')
     starts = range(0, N, chunksize)
     for start in starts:
-        conv_fd = (fft(signal[start:start+chunksize], n=fft_length) 
+        length = min(chunksize, N - start)
+        conv_fd = (fft(signal[start:start+length], n=fft_length) 
                    * fft(kernel, n=fft_length))
-        conv_chunk = ifft(conv_fd)[..., :chunksize + M - 1]
+        conv_chunk = ifft(conv_fd)[..., :length + M - 1]
         res[start:start+len(conv_chunk)] += conv_chunk
         # Usually the cache is to blame for memory errors
         clean_scipy_cache()
@@ -108,15 +105,11 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None,
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
-    chunksize : float, optional
-        The chunksize to use for the signal when performing
-        the convolution.
-        Default is 30000.
     fft_length : float, optional
-        FFT length to use when computing the convolution
-        If the length of the signal is N and the length of
-        the kernel is M, then the default is
-        next_fast_len(N + M - 1)
+        FFT length to use when computing the convolution.
+        Default is 16384; if the kernel is larger than this,
+        than the closest power of 4 greater than the kernel
+        length is chosen.
 
     Returns
     -------
@@ -141,15 +134,16 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None,
             raise ValueError("Cannot do a 'valid' convolution because "
                              "the input is shorter than the kernel")
 
-    if chunksize is None:
-        chunksize = min(N, 30000)
+    if fft_length is not None:
+        if fft_length < M:
+            raise ValueError("FFT length must be at least the kernel"
+                             " size of {}".format(M))
+    else:   # Choose good fft_length
+        fft_length = 16384
+        while fft_length < M:
+            fft_length *= 4
 
-    if fft_length is None:
-        fft_length = next_fast_len(chunksize + M - 1)
-
-    if chunksize + M - 1 > fft_length:
-        raise ValueError("The fft_lengthen of {} is not large"
-                         " enough to do the convolution properly")
+    chunksize = fft_length - M + 1
 
     # The convention in many textbooks is to write the time-domain
     # signal as lower-case and the Fourier Transform as capital-case
