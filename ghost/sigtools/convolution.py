@@ -253,7 +253,7 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
                              "the input is shorter than the kernel")
 
     if chunksize is None:
-        chunksize = min(N, 30000)
+        chunksize = min(kernel_fd.size - M, 30000)
 
     if chunksize + M - 1 > kernel_fd.size:
         raise ValueError("There must be at least {} frequency samples of the"
@@ -333,7 +333,7 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
                              "the input is shorter than the kernel")
 
     if chunksize is None:
-        chunksize = min(N, 30000)
+        chunksize = min(kernel_fd.size - M, 30000)
 
     if chunksize + M - 1 > kernel_fd.size:
         raise ValueError("There must be at least {} frequency samples of the"
