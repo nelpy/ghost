@@ -1,4 +1,5 @@
 """Default imports for the sigtools module"""
 
-from .convolution import *
 from .analytic import *
+from .convolution import *
+from .fourier import *

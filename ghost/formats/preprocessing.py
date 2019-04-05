@@ -1,6 +1,6 @@
 """This module handles different input data formats"""
 
-import warnings
+import logging
 import numpy as np
 try:
     import nelpy as nel
@@ -38,7 +38,7 @@ def standard_format_1d_asa(obj, *, lengths=None):
                 raise ValueError("Input object must have only one signal")
 
             if lengths is not None:
-                warnings.warn("'Lengths' was passed in, but will be overwritten",
+                logging.warning("'Lengths' was passed in, but will be overwritten"
                                 " by the nelpy object's 'lengths' attribute")
             
             return obj.data.squeeze().copy(), obj.lengths
@@ -51,12 +51,13 @@ def standard_format_1d_asa(obj, *, lengths=None):
                         " so expected a numpy ndarray but got {}".format(type(obj)))
 
     # If we made it this far, we know the obj is a valid numpy array
-    out = obj.squeeze()
-    if out.ndim != 1:
+    if obj.size == 0:
+        logging.warning("Data is empty")
+    if len(obj.squeeze().shape) > 1:
         raise ValueError("Numpy array must have only one dimension after being squeezed")
     if lengths is None:
-        lengths = np.array([len(out)])
-    if np.sum(lengths) != out.size:
-        raise ValueError("Lengths must sum to {} but got {}".format(out.size, np.sum(lengths)))
+        lengths = np.array([obj.size])
+    if np.sum(lengths) != obj.size:
+        raise ValueError("Lengths must sum to {} but got {}".format(obj.size, np.sum(lengths)))
 
-    return out.copy(), lengths
+    return obj.squeeze().copy(), lengths

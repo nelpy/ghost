@@ -1,6 +1,7 @@
 """This module handles the output types a user wants"""
 
 import numpy as np
+import logging
 
 try:
     import nelpy as nel
@@ -31,6 +32,9 @@ def output_numpy_or_asa(obj, data, *, output_type=None, labels=None):
     Output object of the specified type. If a numpy array, it will
     have shape (n_samples, n_signals)
     """
+
+    if data.size == 0:
+        logging.warning("Output data is empty")
     
     if not isinstance(data, np.ndarray):
         raise TypeError("data must be a numpy ndarray")

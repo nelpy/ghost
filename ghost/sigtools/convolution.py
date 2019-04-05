@@ -1,45 +1,31 @@
 """This file contains useful functions to perform convolutions"""
 
-__all__ = ['fastconv_scipy', 'fastconv_fftw']
+__all__ = ['fastconv_scipy', 'fastconv_fftw',
+           'fastconv_freq_scipy', 'fastconv_freq_fftw']
 
 import numpy as np
-import scipy.fftpack._fftpack as sff
 from scipy.fftpack import next_fast_len, fft, ifft
 from scipy.signal import fftconvolve
 from multiprocessing import cpu_count
+
+from .fourier import clean_scipy_cache
 
 try:
     import pyfftw
 except:
     pass
 
-def clean_scipy_cache():
-    sff.destroy_zfft_cache()
-    sff.destroy_zfftnd_cache()
-    sff.destroy_drfft_cache()
-    sff.destroy_cfft_cache()
-    sff.destroy_cfftnd_cache()
-    sff.destroy_rfft_cache()
-    sff.destroy_ddct2_cache()
-    sff.destroy_ddct1_cache()
-    sff.destroy_dct2_cache()
-    sff.destroy_dct1_cache()
-    sff.destroy_ddst2_cache()
-    sff.destroy_ddst1_cache()
-    sff.destroy_dst2_cache()
-    sff.destroy_dst1_cache()
-
 def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
-    """Computes a convolution using the convolution theorem with
-    scipy's fftpack. This function tries to be as memory efficient
-    as possible by processing the data in chunks.
+    """Computes a convolution with scipy's fftpack, using the
+    convolution theorem. This function is more memory efficient
+    than computing the convolution on the entire data at once.
     
     Parameters
     ----------
     signal : np.ndarray, 1D
         Input signal
     kernel : np.ndarray, 1D
-        The kernel to convolve the signal with
+        The kernel with which to convolve the signal
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
@@ -72,7 +58,7 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
                              "the input is shorter than the kernel")
 
     if chunksize is None:
-        chunksize = np.minimum(N, 30000)
+        chunksize = min(N, 30000)
 
     res = np.zeros(tot_length, dtype='<c16')
     starts = range(0, N, chunksize)
@@ -93,16 +79,16 @@ def fastconv_scipy(signal, kernel, *, mode=None, chunksize=None):
     return res[..., st_ind:st_ind+newsize]
 
 def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
-    """Computes a convolution using the convolution theorem using
-    FFTW. This function tries to be as memory efficient as possible
-    by processing the data in chunks and minimizing array copying.
+    """Computes a convolution with FFTW, using the convolution
+    theorem. This function has been written to minimize memory
+    usage.
     
     Parameters
     ----------
     signal : np.ndarray, 1D
         Input signal
     kernel : np.ndarray, 1D
-        The kernel to convolve the signal with
+        The kernel with which to convolve the signal
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
@@ -135,7 +121,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
                              "the input is shorter than the kernel")
 
     if chunksize is None:
-        chunksize = min(len(signal), 30000)
+        chunksize = min(N, 30000)
 
     fast_chunk_len = pyfftw.next_fast_len(chunksize + M - 1)
 
@@ -159,9 +145,10 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
                               planning_timelimit=5 )
     
     # Quick sanity checks that we're using FFTW correctly
-    x[..., :chunksize] = signal[0:0+chunksize]
+    x[..., :chunksize] = signal[..., :chunksize]
     fft_sig(normalise_idft=True)
-    assert np.allclose(X[:fast_chunk_len], fft(signal[0:0+chunksize], fast_chunk_len))
+    assert np.allclose(X[..., :fast_chunk_len],
+                       fft(signal[..., :chunksize], fast_chunk_len))
 
     # Check that we get the signal back when taking the IFFT of the FFT
     xfd = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
@@ -173,7 +160,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
                            planning_timelimit=5 )
     xfd[...] = X
     fft_sig_backward(normalise_idft=True)
-    assert np.allclose(xback[:chunksize], x[:chunksize])
+    assert np.allclose(xback[..., :chunksize], x[..., :chunksize])
 
     y[..., :M] = kernel
     # Notice that once we take the FFT of the kernel, we never have to
@@ -182,11 +169,12 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     fft_kernel()
     assert np.allclose(Y, fft(kernel, fast_chunk_len))
 
+    # We don't care about the convolution looks like in the frequency
+    # domain so we can compute an in-place FFT to save memory (and
+    # potentially computation time)
     conv_fd = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
     conv_td = pyfftw.zeros_aligned(fast_chunk_len, dtype='complex128')
-    # We don't care about saving the result of the convolution in the
-    # frequency domain so we do an in-place FFT here to save memory
-    fft_conv_inv = pyfftw.FFTW(conv_fd, conv_td, 
+    fft_conv_inv = pyfftw.FFTW(conv_fd, conv_td,
                           direction='FFTW_BACKWARD', 
                           flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'], 
                           threads=cpu_count(), 
@@ -196,21 +184,211 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None):
     starts = range(0, N, chunksize)
     for start in starts:
         length = min(chunksize, N - start)
+        # Ensure that the input data buffer for the FFT on iteration
+        # i gets completely overwritten by the data on iteration i+1
+        # (and any extra space in the buffer is filled with 0s)
         x[..., :length] = signal[..., start:start+length]
+        x[..., length:] = 0
         fft_sig(normalise_idft=True)
-        conv_fd[...] = Y * X
+        conv_fd[...] = X * Y
         fft_conv_inv(normalise_idft=True)
         res[..., start:start+length+M-1] += conv_td[..., :length+M-1]
-        # If variable chunksizes are used, we should do:
-        # (1) x[..., :length] = signal[..., start:start+chunksize]
-        # (2) x[..., length:] = 0
-        # This ensures the input data buffer for the FFT on iteration
+
+    if mode == 'full':
+        newsize = tot_length
+    elif mode == 'same':
+        newsize = N
+    else:  # valid
+        newsize = N - M + 1
+    st_ind = (tot_length - newsize) // 2
+
+    return res[..., st_ind:st_ind+newsize]
+
+def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
+                        *, mode=None, chunksize=None):
+    """Computes a convolution with scipy's fftpack, using
+    the convolution theorem, where the signal is in the
+    time domain but the kernel is in the frequency domain.
+    This function is more memory efficient than computing
+    the convolution on the entire data at once.
+
+    Parameters
+    ----------
+    signal : np.ndarray, 1D
+        Input signal, in the time domain
+    kernel_fd : np.ndarray, 1D
+        Kernel, in the frequency domain
+    kernel_len : float
+        The actual length of the kernel, since the frequency
+        samples may be padded
+    mode : 'full', 'same', or 'valid', optional
+        The type of convolution to perform.
+        Default is 'same'.
+    chunksize : float, optional
+        The chunksize to use for the signal when performing
+        the convolution.
+        Default is 30000.
+
+    Returns
+    -------
+    A 1D array containing the result of the convolution
+    """
+
+    N = signal_td.shape[-1]
+    M = kernel_len
+    tot_length = N + M - 1
+
+    if signal_td.ndim != 1:
+        raise ValueError("Signal must be 1D")
+    if kernel_fd.ndim != 1:
+        raise ValueError("Kernel must be 1D")
+
+    if mode is None:
+        mode = 'same'
+    if mode not in ('full', 'same', 'valid'):
+        raise ValueError("Mode must be 'full', 'same', or 'valid'")
+    if mode == 'valid':
+        if N < M:
+            raise ValueError("Cannot do a 'valid' convolution because "
+                             "the input is shorter than the kernel")
+
+    if chunksize is None:
+        chunksize = min(N, 30000)
+
+    if chunksize + M - 1 > kernel_fd.size:
+        raise ValueError("There must be at least {} frequency samples of the"
+                         " kernel to compute the convolution but only got {}"
+                         .format(chunksize + M - 1, kernel_fd.size))
+
+    res = np.zeros(tot_length, dtype='<c16')
+    starts = range(0, N, chunksize)
+    for start in starts:
+        # This part is critical to get right. We first take a DFT
+        # of each chunk, with *total length* the same as that of the
+        # frequency samples. Then multiply and excise the right
+        # length for each chunk
+        length = min(chunksize, N - start)
+        signal_fd = fft(signal_td[start:start+length], n=kernel_fd.size)
+        conv_fd = signal_fd * kernel_fd
+        conv_td = ifft(conv_fd)[..., :length+M-1]
+        res[start:start+len(conv_td)] += conv_td
+        # Usually the cache is to blame for memory errors
+        clean_scipy_cache()
+
+    if mode == 'full':
+        newsize = tot_length
+    elif mode == 'same':
+        newsize = N
+    else:  # valid
+        newsize = N - M + 1
+    st_ind = (tot_length - newsize) // 2
+
+    return res[..., st_ind:st_ind+newsize]
+
+def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
+                        *, mode=None, chunksize=None):
+    """Computes a convolution with FFTW, using the convolution
+    theorem, where the signal is in the time domain but the
+    kernel is in the frequency domain. This function has been
+    written to minimize memory usage.
+
+    Parameters
+    ----------
+    signal : np.ndarray, 1D
+        Input signal, in the time domain
+    kernel_fd : np.ndarray, 1D
+        Kernel, in the frequency domain
+    kernel_len : float
+        The actual length of the kernel, since the frequency
+        samples may be padded
+    mode : 'full', 'same', or 'valid', optional
+        The type of convolution to perform.
+        Default is 'same'.
+    chunksize : float, optional
+        The chunksize to use for the signal when performing
+        the convolution.
+        Default is 30000.
+
+    Returns
+    -------
+    A 1D array containing the result of the convolution
+    """
+
+    N = signal_td.shape[-1]
+    M = kernel_len
+    tot_length = N + M - 1
+
+    if signal_td.ndim != 1:
+        raise ValueError("Signal must be 1D")
+    if kernel_fd.ndim != 1:
+        raise ValueError("Kernel must be 1D")
+
+    if mode is None:
+        mode = 'same'
+    if mode not in ('full', 'same', 'valid'):
+        raise ValueError("Mode must be 'full', 'same', or 'valid'")
+    if mode == 'valid':
+        if N < M:
+            raise ValueError("Cannot do a 'valid' convolution because "
+                             "the input is shorter than the kernel")
+
+    if chunksize is None:
+        chunksize = min(N, 30000)
+
+    if chunksize + M - 1 > kernel_fd.size:
+        raise ValueError("There must be at least {} frequency samples of the"
+                         " kernel to compute the convolution but only got {}"
+                         .format(chunksize + M - 1, kernel_fd.size))
+
+    x = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
+    X = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
+    fft_sig = pyfftw.FFTW( x, X,
+                           direction='FFTW_FORWARD',
+                           flags=['FFTW_ESTIMATE'],
+                           threads=cpu_count(), 
+                           planning_timelimit=5 )
+
+    # We don't care about what the convolution looks like in the
+    # frequency domain so we do an in-place FFT to save memory
+    conv_fd = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
+    conv_td = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
+    fft_conv_inv = pyfftw.FFTW( conv_fd, conv_td,
+                           direction='FFTW_BACKWARD',
+                           flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'],
+                           threads=cpu_count(),
+                           planning_timelimit=5 )
+
+    res = np.zeros(tot_length, dtype='<c16')
+    starts = range(0, N, chunksize)
+    for start in starts:
+        # This part is critical to get right. We first take a DFT
+        # of each chunk, with *total length* the same as that of the
+        # frequency samples. Then multiply and excise the right
+        # length for each chunk
+        length = min(chunksize, N - start)
+
+        # Ensure that the input data buffer for the FFT on iteration
         # i gets completely overwritten by the data on iteration i+1
-        # (and any extra space in the buffer is filled with 0).
-        # Variable length chunksizes only occur on the very last iteration
-        # and so we don't need to bother with (2) because we aren't
-        # taking the FFT another time. Eliminating the unecessary operation
-        # thus saves us some computation.
+        # (and any extra space in the buffer is filled with 0s)
+        x[..., :length] = signal_td[start:start+length]
+        x[..., length:] = 0
+        fft_sig(normalise_idft=True)
+
+        # If the strides and alignment are right, the arrays associated
+        # with a PyFFTW.FFTW object might actually share memory with the
+        # array whose values are being accessed. This is a great way to
+        # be memory efficient. But we also need to be especially careful
+        # since we are using an in-place transform. If the line below
+        # were simply conv_fd[...] = kernel_fd, kernel_fd might be
+        # destroyed after taking the transform and that's no good.
+        # However, in this case, the rvalue of the assignment operator
+        # is a product, and we know a product creates a new array, so
+        # we're safe and shouldn't have to worry about the rvalue arrays
+        # getting destroyed
+        conv_fd[...] = X * kernel_fd
+        fft_conv_inv(normalise_idft=True)
+
+        res[start:start+length+M-1] += conv_td[:length+M-1]
 
     if mode == 'full':
         newsize = tot_length
