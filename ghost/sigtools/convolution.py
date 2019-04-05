@@ -227,7 +227,7 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
     chunksize : float, optional
         The chunksize to use for the signal when performing
         the convolution.
-        Default is 30000.
+        Default is kernel_fd.size - kernel_len
 
     Returns
     -------
@@ -307,7 +307,7 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
     chunksize : float, optional
         The chunksize to use for the signal when performing
         the convolution.
-        Default is 30000.
+        Default is kernel_fd.size - kernel_len
 
     Returns
     -------
