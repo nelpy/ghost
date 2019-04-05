@@ -367,9 +367,9 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
         # length for each chunk
         length = min(chunksize, N - start)
 
-        # Ensure that the input data buffer for the FFT on iteration
-        # i gets completely overwritten by the data on iteration i+1
-        # (and any extra space in the buffer is filled with 0s)
+        # Ensure that we overwrite *all* of the input data buffer
+        # for each iteration so that there's nothing remaining
+        # from the last iteration
         x[..., :length] = signal_td[start:start+length]
         x[..., length:] = 0
         fft_sig(normalise_idft=True)
