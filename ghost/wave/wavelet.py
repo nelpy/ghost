@@ -19,9 +19,3 @@ class Wavelet(ABC):
     @abstractmethod
     def copy(self):
         pass
-
-    @property
-    def fc(self):
-        """The center frequency is the frequency at which the
-        wavelet's DFT has the highest magnitude"""
-        pass

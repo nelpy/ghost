@@ -59,9 +59,8 @@ class Morlet(Wavelet):
         self._freq_to_scale()
         
         dt = 1/self._fs
-        # Capture the highest possible frequency
-        # in the data
-        M = self._fs
+        # Number of points to capture wavelet sufficiently
+        M = 15 * self._fs * self._scale
         # times to use, centered at zero
         t = np.arange(-(M+1)/2, (M+1)/2) * dt
         
@@ -88,6 +87,9 @@ class Morlet(Wavelet):
 
     @fs.setter
     def fs(self, sample_rate):
+
+        if sample_rate <= 0:
+            raise ValueError("Sampling rate must be positive")
         self._fs = sample_rate
         self._recompute()
 
@@ -97,6 +99,9 @@ class Morlet(Wavelet):
 
     @w0.setter
     def w0(self, norm_freq):
+
+        if norm_freq <= 0:
+            raise ValueError("Frequency ratio must be positive")
         self._w0 = norm_freq
         self._recompute()
 
@@ -107,5 +112,13 @@ class Morlet(Wavelet):
 
     @freq.setter
     def freq(self, freq):
+
+        if freq <= 0:
+            raise ValueError("The wavelet frequency must be positive")
         self._freq = freq
         self._recompute()
+
+    @property
+    def scale(self):
+
+        return self._scale
