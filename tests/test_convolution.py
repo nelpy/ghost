@@ -20,7 +20,6 @@ def test_fastconv_time_domain():
         assert np.allclose(conv_fftw, conv)
         assert np.allclose(conv_fftw, conv_scipy)
 
-
 def test_fastconv_freq_domain():
 
     N = 10000
@@ -28,7 +27,7 @@ def test_fastconv_freq_domain():
 
     x = np.random.rand(N)
     y = np.random.rand(M)
-    Y = fft(y)
+    Y = fft(y, n=3000)
 
     for mode in ('full', 'same', 'valid'):
 
