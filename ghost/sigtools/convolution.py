@@ -62,21 +62,21 @@ def fastconv_scipy(signal, kernel, *, mode=None, fft_length=None):
         if fft_length < M:
             raise ValueError("FFT length must be at least the kernel"
                              " size of {}".format(M))
-    else:   # Choose good fft_length
+    else:   # Choose good default fft_length
         fft_length = 16384
         while fft_length < M:
             fft_length *= 4
 
-    chunksize = fft_length - M + 1
-
     res = np.zeros(tot_length, dtype='<c16')
+    
+    chunksize = min(fft_length - M + 1, N)
     starts = range(0, N, chunksize)
     for start in starts:
         length = min(chunksize, N - start)
-        conv_fd = (fft(signal[start:start+length], n=fft_length) 
+        conv_fd = (fft(signal[..., start:start+length], n=fft_length) 
                    * fft(kernel, n=fft_length))
         conv_chunk = ifft(conv_fd)[..., :length + M - 1]
-        res[start:start+len(conv_chunk)] += conv_chunk
+        res[..., start:start+len(conv_chunk)] += conv_chunk
         # Usually the cache is to blame for memory errors
         clean_scipy_cache()
 
@@ -90,8 +90,7 @@ def fastconv_scipy(signal, kernel, *, mode=None, fft_length=None):
     
     return res[..., st_ind:st_ind+newsize]
 
-def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None, 
-                  fft_length=None):
+def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
     """Computes a convolution with FFTW, using the convolution
     theorem. This function has been written to minimize memory
     usage.
@@ -138,12 +137,12 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None,
         if fft_length < M:
             raise ValueError("FFT length must be at least the kernel"
                              " size of {}".format(M))
-    else:   # Choose good fft_length
+    else:   # Choose good default fft_length
         fft_length = 16384
         while fft_length < M:
             fft_length *= 4
 
-    chunksize = fft_length - M + 1
+    chunksize = min(fft_length - M + 1, N)
 
     # The convention in many textbooks is to write the time-domain
     # signal as lower-case and the Fourier Transform as capital-case
@@ -163,24 +162,6 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None,
                               flags=['FFTW_ESTIMATE'], 
                               threads=cpu_count(), 
                               planning_timelimit=5 )
-    
-    # Quick sanity checks that we're using FFTW correctly
-    x[..., :chunksize] = signal[..., :chunksize]
-    fft_sig(normalise_idft=True)
-    assert np.allclose(X[..., :fft_length],
-                       fft(signal[..., :chunksize], fft_length))
-
-    # Check that we get the signal back when taking the IFFT of the FFT
-    xfd = pyfftw.zeros_aligned(fft_length, dtype='complex128')
-    xback = pyfftw.zeros_aligned(fft_length, dtype='complex128')
-    fft_sig_backward = pyfftw.FFTW( xfd, xback, 
-                           direction='FFTW_BACKWARD',
-                           flags=['FFTW_ESTIMATE'], 
-                           threads=cpu_count(), 
-                           planning_timelimit=5 )
-    xfd[...] = X
-    fft_sig_backward(normalise_idft=True)
-    assert np.allclose(xback[..., :chunksize], x[..., :chunksize])
 
     y[..., :M] = kernel
     # Notice that once we take the FFT of the kernel, we never have to
@@ -201,6 +182,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None,
                           planning_timelimit=5 )
 
     res = np.zeros(tot_length, dtype='<c16')
+    
     starts = range(0, N, chunksize)
     for start in starts:
         length = min(chunksize, N - start)
@@ -225,7 +207,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, chunksize=None,
     return res[..., st_ind:st_ind+newsize]
 
 def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
-                        *, mode=None, chunksize=None):
+                        *, mode=None):
     """Computes a convolution with scipy's fftpack, using
     the convolution theorem, where the signal is in the
     time domain but the kernel is in the frequency domain.
@@ -240,14 +222,10 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
         Kernel, in the frequency domain
     kernel_len : float
         The actual length of the kernel, since the frequency
-        samples may be padded
+        samples may have been padded
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
-    chunksize : float, optional
-        The chunksize to use for the signal when performing
-        the convolution.
-        Default is kernel_fd.size - kernel_len
 
     Returns
     -------
@@ -272,15 +250,8 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
             raise ValueError("Cannot do a 'valid' convolution because "
                              "the input is shorter than the kernel")
 
-    if chunksize is None:
-        chunksize = min(kernel_fd.size - M + 1, 30000)
-
-    if chunksize + M - 1 > kernel_fd.size:
-        raise ValueError("There must be at least {} frequency samples of the"
-                         " kernel to compute the convolution but only got {}"
-                         .format(chunksize + M - 1, kernel_fd.size))
-
     res = np.zeros(tot_length, dtype='<c16')
+    chunksize = min(kernel_fd.shape[-1] - M + 1, N)
     starts = range(0, N, chunksize)
     for start in starts:
         # This part is critical to get right. We first take a DFT
@@ -288,10 +259,11 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
         # frequency samples. Then multiply and excise the right
         # length for each chunk
         length = min(chunksize, N - start)
-        signal_fd = fft(signal_td[start:start+length], n=kernel_fd.size)
+        signal_fd = fft(signal_td[..., start:start+length], 
+                        n=kernel_fd.size)
         conv_fd = signal_fd * kernel_fd
         conv_td = ifft(conv_fd)[..., :length+M-1]
-        res[start:start+len(conv_td)] += conv_td
+        res[..., start:start+len(conv_td)] += conv_td
         # Usually the cache is to blame for memory errors
         clean_scipy_cache()
 
@@ -306,7 +278,7 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
     return res[..., st_ind:st_ind+newsize]
 
 def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
-                        *, mode=None, chunksize=None):
+                        *, mode=None):
     """Computes a convolution with FFTW, using the convolution
     theorem, where the signal is in the time domain but the
     kernel is in the frequency domain. This function has been
@@ -320,14 +292,10 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
         Kernel, in the frequency domain
     kernel_len : float
         The actual length of the kernel, since the frequency
-        samples may be padded
+        samples may have been padded
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
-    chunksize : float, optional
-        The chunksize to use for the signal when performing
-        the convolution.
-        Default is kernel_fd.size - kernel_len
 
     Returns
     -------
@@ -352,13 +320,7 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
             raise ValueError("Cannot do a 'valid' convolution because "
                              "the input is shorter than the kernel")
 
-    if chunksize is None:
-        chunksize = min(kernel_fd.size - M + 1, 30000)
-
-    if chunksize + M - 1 > kernel_fd.size:
-        raise ValueError("There must be at least {} frequency samples of the"
-                         " kernel to compute the convolution but only got {}"
-                         .format(chunksize + M - 1, kernel_fd.size))
+    chunksize = min(kernel_fd.shape[-1] - M + 1, N)
 
     x = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
     X = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
@@ -408,7 +370,7 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
         conv_fd[...] = X * kernel_fd
         fft_conv_inv(normalise_idft=True)
 
-        res[start:start+length+M-1] += conv_td[:length+M-1]
+        res[..., start:start+length+M-1] += conv_td[..., :length+M-1]
 
     if mode == 'full':
         newsize = tot_length
