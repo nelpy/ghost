@@ -12,7 +12,7 @@ If variables without the leading underscore are used, it typically means the fol
 Coding Conventions
 ==================
 
-In adherence with PEP 8, ``underscore_case`` is used for variables and function definitions. ``TitleCase`` signifies a class. ``lowerCamelCase`` is almost ways avoided, except where it's the convention, such as for Qt programming. Mixing cases e.g.
+In adherence with PEP 8, ``underscore_case`` is used for variables and function definitions. ``TitleCase`` signifies a class. ``lowerCamelCase`` is almost always avoided, except where it's the convention, such as for Qt programming. Mixing cases e.g.
 
 .. code-block:: python
 
