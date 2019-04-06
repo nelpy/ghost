@@ -1,6 +1,5 @@
-=====
 Implementation Guide
-=====
+====================
 
 Within a class implementation, variables with leading underscores are used to signify that they are not intended to be part of the public API. 
 
