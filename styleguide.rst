@@ -18,4 +18,4 @@ In adherence with PEP 8, ``underscore_case`` is used for variables and function 
 
     mehData_fromExperiment
 
-is a no-no.
+is a no-No.
