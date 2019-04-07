@@ -90,7 +90,8 @@ def fastconv_scipy(signal, kernel, *, mode=None, fft_length=None):
     
     return res[..., st_ind:st_ind+newsize]
 
-def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
+def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None,
+                  n_threads=None):
     """Computes a convolution with FFTW, using the convolution
     theorem. This function has been written to minimize memory
     usage.
@@ -109,6 +110,11 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
         Default is 16384; if the kernel is larger than this,
         than the closest power of 4 greater than the kernel
         length is chosen.
+    n_threads : int, optional
+        How many threads to use for the FFT.
+        Default is the total number of virtual threads.
+        This may be larger than the number of physical
+        CPU cores.
 
     Returns
     -------
@@ -142,6 +148,13 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
         while fft_length < M:
             fft_length *= 4
 
+    if n_threads is None:
+        n_threads = cpu_count()
+    else:
+        n_threads = int(n_threads)
+    if n_threads < 1:
+        raise ValueError("Must have at least one thread to do the FFT...")
+
     chunksize = min(fft_length - M + 1, N)
 
     # The convention in many textbooks is to write the time-domain
@@ -152,7 +165,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
     fft_sig = pyfftw.FFTW( x, X, 
                            direction='FFTW_FORWARD',
                            flags=['FFTW_ESTIMATE'], 
-                           threads=cpu_count(), 
+                           threads=n_threads, 
                            planning_timelimit=5 )
 
     y = pyfftw.zeros_aligned(fft_length, dtype='complex128')
@@ -160,7 +173,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
     fft_kernel = pyfftw.FFTW( y, Y, 
                               direction='FFTW_FORWARD', 
                               flags=['FFTW_ESTIMATE'], 
-                              threads=cpu_count(), 
+                              threads=n_threads, 
                               planning_timelimit=5 )
 
     y[..., :M] = kernel
@@ -178,7 +191,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None):
     fft_conv_inv = pyfftw.FFTW(conv_fd, conv_td,
                           direction='FFTW_BACKWARD', 
                           flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'], 
-                          threads=cpu_count(), 
+                          threads=n_threads, 
                           planning_timelimit=5 )
 
     res = np.zeros(tot_length, dtype='<c16')
@@ -278,7 +291,7 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
     return res[..., st_ind:st_ind+newsize]
 
 def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
-                        *, mode=None):
+                        *, mode=None, n_threads=None):
     """Computes a convolution with FFTW, using the convolution
     theorem, where the signal is in the time domain but the
     kernel is in the frequency domain. This function has been
@@ -296,6 +309,11 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
     mode : 'full', 'same', or 'valid', optional
         The type of convolution to perform.
         Default is 'same'.
+    n_threads : int, optional
+        How many threads to use for the FFT.
+        Default is the total number of virtual threads.
+        This may be larger than the number of physical
+        CPU cores.
 
     Returns
     -------
@@ -320,6 +338,13 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
             raise ValueError("Cannot do a 'valid' convolution because "
                              "the input is shorter than the kernel")
 
+    if n_threads is None:
+        n_threads = cpu_count()
+    else:
+        n_threads = int(n_threads)
+    if n_threads < 1:
+        raise ValueError("Must have at least one thread to do the FFT...")
+
     chunksize = min(kernel_fd.shape[-1] - M + 1, N)
 
     x = pyfftw.zeros_aligned(kernel_fd.size, dtype='complex128')
@@ -327,7 +352,7 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
     fft_sig = pyfftw.FFTW( x, X,
                            direction='FFTW_FORWARD',
                            flags=['FFTW_ESTIMATE'],
-                           threads=cpu_count(), 
+                           threads=n_threads, 
                            planning_timelimit=5 )
 
     # We don't care about what the convolution looks like in the
@@ -337,7 +362,7 @@ def fastconv_freq_fftw(signal_td, kernel_fd, kernel_len,
     fft_conv_inv = pyfftw.FFTW( conv_fd, conv_td,
                            direction='FFTW_BACKWARD',
                            flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'],
-                           threads=cpu_count(),
+                           threads=n_threads,
                            planning_timelimit=5 )
 
     res = np.zeros(tot_length, dtype='<c16')
