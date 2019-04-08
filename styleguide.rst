@@ -19,3 +19,5 @@ In adherence with PEP 8, ``underscore_case`` is used for variables and function 
     mehData_fromExperiment
 
 is a no-no.
+
+If variable names begin with an upper case, this is due to mathematical convention. An example is Fourier transform pairs x <--> X; L, N for data lengths, etc.
