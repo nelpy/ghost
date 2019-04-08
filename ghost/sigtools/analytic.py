@@ -30,7 +30,8 @@ def analytic_signal_fftw(signal, *, fft_length=None,
     signal : numpy.ndarray
         Must be 1D and real
     fft_length : float, optional
-        FFT length to use when computing the convolution.
+        FFT length to use when computing the spectrum of the
+        signal. By default, the signal is not padded.
         WARNING: Too much padding can lead to undesirable
         consequences, especially at the boundaries.
     n_threads : int, optional
@@ -64,7 +65,7 @@ def analytic_signal_fftw(signal, *, fft_length=None,
     L = signal.shape[-1]
 
     if fft_length is None:
-        fft_length = pyfftw.next_fast_len(L)
+        fft_length = signal.shape[-1]
     if fft_length < L:
         raise ValueError("'fft_length' must be at least the length of the"
                          " input data")
@@ -80,7 +81,7 @@ def analytic_signal_fftw(signal, *, fft_length=None,
     xfd = pyfftw.zeros_aligned(M, dtype='complex128')
     fft_sig = pyfftw.FFTW( xtd, xfd,
                            direction='FFTW_FORWARD',
-                           flags=['FFTW_ESTIMATE'], 
+                           flags=['FFTW_ESTIMATE'],
                            threads=n_threads,
                            planning_timelimit=5 )
     
