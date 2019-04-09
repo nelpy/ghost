@@ -23,8 +23,21 @@ def clean_scipy_cache():
     sff.destroy_dst2_cache()
     sff.destroy_dst1_cache()
 
-
 def chirpz_dft(x):
+    """Computes the DFT of a signal using the Chirp Z-transform.
+    This function is in general slower than FFTW but can be orders
+    of magnitude faster than scipy's fft for prime-length data.
+    
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Input data. Must be 1D
+
+    Returns
+    -------
+    The DFT of x
+
+    """
 
     if x.ndim != 1:
         raise ValueError("Data must be 1-dimensional")
