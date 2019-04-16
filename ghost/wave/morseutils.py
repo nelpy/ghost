@@ -7,8 +7,8 @@ from scipy.special import gammaln, comb
 from scipy.special import gamma as gammafunc
 
 __all__ = ['morsewave', 'morseafunc', 'morsefreq', 'morsemom',
-           'morsef', 'morseprops', 'morselow', 'morsehigh',
-           'morsespace']
+           'morsef', 'morsespace', 'morsehigh', 'morselow',
+           'morseprops']
 
 # Note: The functions here are arranged in terms of locality
 # so that 'bottom-level' methods are close to the 'top-level'
@@ -196,9 +196,64 @@ def _morsewave_first_family(fact, N, n_wavelets, gamma, beta,
 
     return psif
 
+def morseafunc(gamma, beta, *, normalization=None, order=None):
+    """Returns the generalized Morse wavelet amplitude or a-function.
+
+    Parameters
+    ----------
+    gamma : float
+        Gamma parameter of the Morse wavelet
+    beta : float
+        Beta parameter of the Morse wavelet
+    normalization : string, optional
+        Type of normalization to use.
+        If 'bandpass', then A is chosen such that the maximum of
+        the frequency-domain wavelet is equal to 2.
+        If 'energy', then the sum of the wavelet's squared coefficients
+        will be 1.
+        Default is 'bandpass'
+    order : int, optional
+        The order of the wavelet. Note that this parameter is only used
+        for the unit energy normalization
+
+    References
+    ----------
+    Lilly and Olhede (2009)
+    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
+    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morseafun.m
+    """
+
+    _check_gamma_beta(gamma, beta)
+
+    if normalization is None:
+        normalization = 'bandpass'
+    if normalization not in ('bandpass', 'energy'):
+        raise ValueError("Normalization must be 'bandpass' or 'energy'")
+
+    if order is None:
+        order = 1
+    if order < 0:
+        raise ValueError("Order must at least be 0")
+
+    if normalization =='bandpass':
+        w_p = morsefreq(gamma, beta, nout=1)
+        if beta == 0:
+            a = 2
+        else:
+            a = 2 / np.exp(beta * np.log(w_p) - w_p ** gamma)
+    elif normalization == 'test':
+        r = (2 * beta + 1) / gamma
+        a = np.sqrt( (2 * np.pi * gamma * 2 ** r) /  gammafunc(r) )
+    elif normalization == 'energy':
+        r = (2 * beta + 1) / gamma
+        a = np.sqrt( 2 * np.pi * gamma * (2 ** r) 
+                     * np.exp(gammaln(order) - gammaln( order + r - 1)) )
+    
+    return a
+
 def _laguerre(x, k, c):
     """
-    Laguerre Generalized Laguerre polynomials
+    Generalized Laguerre polynomials
     """
     x = np.atleast_1d(np.array(x).squeeze())
 
@@ -279,77 +334,11 @@ def morsefreq(gamma, beta, *, nout=None):
     else:
         return fm, fe, fi, cf
 
-def morseafunc(gamma, beta, *, normalization=None, order=None):
-    """Returns the generalized Morse wavelet amplitude or a-function.
-
-    Parameters
-    ----------
-    gamma : float
-        Gamma parameter of the Morse wavelet
-    beta : float
-        Beta parameter of the Morse wavelet
-    normalization : string, optional
-        Type of normalization to use.
-        If 'bandpass', then A is chosen such that the maximum of
-        the frequency-domain wavelet is equal to 2.
-        If 'energy', then the sum of the wavelet's squared coefficients
-        will be 1.
-        Default is 'bandpass'
-    order : int, optional
-        The order of the wavelet. Note that this parameter is only used
-        for the unit energy normalization
-
-    References
-    ----------
-    Lilly and Olhede (2009)
-    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morseafun.m
-    """
-
-    _check_gamma_beta(gamma, beta)
-
-    if normalization is None:
-        normalization = 'bandpass'
-    if normalization not in ('bandpass', 'energy'):
-        raise ValueError("Normalization must be 'bandpass' or 'energy'")
-
-    if order is None:
-        order = 1
-    if order < 0:
-        raise ValueError("Order must at least be 0")
-
-    if normalization =='bandpass':
-        w_p = morsefreq(gamma, beta, nout=1)
-        if beta == 0:
-            a = 2
-        else:
-            a = 2 / np.exp(beta * np.log(w_p) - w_p ** gamma)
-    elif normalization == 'test':
-        r = (2 * beta + 1) / gamma
-        a = np.sqrt( (2 * np.pi * gamma * 2 ** r) /  gammafunc(r) )
-    elif normalization == 'energy':
-        r = (2 * beta + 1) / gamma
-        a = np.sqrt( 2 * np.pi * gamma * (2 ** r) 
-                     * np.exp(gammaln(order) - gammaln( order + r - 1)) )
-    
-    return a
-
 def morsemom(p, gamma, beta, *, nout=None):
-    """
-    MORSEMOM: frequency-domain moments of generalized Morse wavelets
+    """Frequency-domain moments of generalized Morse wavelets.
 
-    morsemom is a low-level function called by several other Morse wavelet functions.
-
-    [mp, np, kp, lp] = morsemom(p, gamma, beta) computes the pth order frequency-
-    domain moment M and energy moment N of the lower-order generalized
-    Morse wavelet specified by parameters gamma and beta. It also returns the pth order
-    cumulant kp and the pth order energy cumulant lp.
-
-    The pth moment and energy moment are defined as:
-        mp = 1/(2pi) int omega^p psi(omega)     d omega
-        np = 1/(2pi) int omega^p |psi(omega)|.^2    d omega
-    respectively, where omega is the radian frequency. These are evaluated
-    using the bandpass normalization, which has max(abs(psi(omega)))=2.
+    Note that all outputs are evaluated using the bandpass
+    normalization, which has max(abs(psi(omega)))=2.
 
     Parameters
     ----------
@@ -365,9 +354,13 @@ def morsemom(p, gamma, beta, *, nout=None):
     Returns
     -------
     m : float
-        The pth moment
+        The pth moment defined by
+        mp = 1/(2pi) int omega^p psi(omega) d omega ,
+        where omega is in radians
     n : float
-        The pth energy moment
+        The pth energy moment defined by
+        np = 1/(2pi) int omega^p |psi(omega)|.^2 d omega ,
+        where omega is in radians
     k : float
         The pth order cumulant
     l : float
@@ -417,40 +410,9 @@ def morsemom(p, gamma, beta, *, nout=None):
     else:
         return m, n, k, l
 
-def _maxmax(x):
-    # find the maximum finite component 
-    x = np.array(x)
-    x[x == np.inf] = 0
-
-    return np.max(x)
-
 def _morsemom1(p, gamma, beta):
 
     return morseafunc(gamma, beta) * morsef(gamma, beta + p)
-
-def morsef(gamma, beta):
-    """Computes the generalized Morse wavelet first moment 'f'
-
-    Parameters
-    ----------
-    gamma : float or np.ndarrray
-        Gamma parameter of the Morse wavelet
-    beta : float or np.ndarray
-        Beta Parameter of the Morse wavelet
-        
-    Returns
-    -------
-    The normalized first frequency-domain moment F_{gamma, beta} of
-    the lower-order generalized Morse wavelet specified by parameters
-    gamma and beta
-
-    References
-    ----------
-    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsemom.m
-    """
-
-    return 1 / (2 * np.pi * gamma) * gammafunc((beta + 1) / gamma)
 
 def _moments_to_cumulants(moments):
     """Converts the first N moments contained into the first N cumulants
@@ -482,134 +444,29 @@ def _moments_to_cumulants(moments):
 
     return cumulants
 
-def morseprops(gamma, beta):
-    """Computes properties of the demodulated generalized Morse wavelets
+def morsef(gamma, beta):
+    """Computes the generalized Morse wavelet first moment 'f'
 
     Parameters
     ----------
-    gamma : float
+    gamma : float or np.ndarrray
         Gamma parameter of the Morse wavelet
-    beta : float
-        Beta parameter of the Morse wavelet
-    
+    beta : float or np.ndarray
+        Beta Parameter of the Morse wavelet
+        
     Returns
     -------
-    p : float
-        The dimensionless time-domain window width
-    skew : float
-        Imaginary part of the time-domain demodulate, or 'demodulate
-        skewness'
-    kurt : float
-        Normalized fourth moment of the time-domain demodulate, or
-        'demodulate kurtosis'
-
-    References
-    ----------
-    Lilly & Olhede (2008b)
-    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morseprops.m
-    """
-
-    _check_gamma_beta(gamma, beta)
-
-    p = np.sqrt(gamma * beta)
-    skew = (gamma - 3) / beta
-    kurt = 3 - np.square(skew) - 2 / np.square(p)
-    
-    return p, skew, kurt
-    
-def morselow(gamma, beta, pack_num, N):
-    """Low frequency cutoff of the generalized Morse wavelet specified
-    by gamma and beta, with cutoff determined by the r level and length
-    N of the wavelet.
-
-    The cutoff frequency is chosen such that the lowest-frequency wavelet
-    will reach some number r times its central window width at the ends
-    of the time series. 
-
-    Parameters
-    ----------
-    gamma : float
-        Gamma parameter of the Morse wavelet
-    beta : float
-        Beta parameter of the Morse wavelet
-    pack_num : float
-        The r-level/packing number. A choice of r=1 corresponds to 
-        roughly 95% of the time-domain wavelet energy being contained
-        within the time series endpoints for a wavelet at the center
-        of the domain.
-    N : float
-        The length of the wavelet
+    The normalized first frequency-domain moment F_{gamma, beta} of
+    the lower-order generalized Morse wavelet specified by parameters
+    gamma and beta
 
     References
     ----------
     - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsespace.m
+    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsemom.m
     """
 
-    _check_gamma_beta(gamma, beta)
-
-    if pack_num is None:
-        pack_num = 5
-    if not pack_num > 0:
-        raise ValueError("pack_num must be positive")
-
-    if N < 2:
-        raise ValueError("N must be at least 2")
-
-    p, _, _ = morseprops(gamma, beta)
-
-    return 2 * np.sqrt(2) * p * pack_num / N
-
-def morsehigh(gamma, beta, eta):
-    """High-frequency cutoff of the generalized Morse wavelets specified
-    by gamma and beta, with cutoff level eta
-
-    This function gives the highest possible radian frequency for which
-    the generalized Morse wavelet will have greater than eta times its
-    peak value at the Nyquist frequency. 
-
-    If f = morsefreq(gamma, beta) is the wavelet peak frequency, then
-        psi (pi * f / fhigh) <= eta * psi(f)
-    is the cutoff condition
-
-    Parameters
-    ----------
-    gamma : float
-        The gamma parameter of the Morse wavelet
-    beta : float
-        The beta parameter of the Morse wavelet
-    eta : float
-        The ratio of the frequency-domain wavelet at Nyquist
-        compared to its peak value.
-
-    References
-    ----------
-    Lilly (2017) - appendix
-    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsehigh.m
-    """
-
-    _check_gamma_beta(gamma, beta)
-
-    if eta is None:
-        eta = 0.1
-    if not eta >= 0 and eta <= 1:
-        raise ValueError("eta must be between 0 and 1")
-
-    N = 10000
-    w_high = np.linspace(1e-12, np.pi, N)
-    
-    w = morsefreq(gamma, beta) * np.pi / w_high
-
-    #  Use logs to avoid errors for really small gammas
-    #  Note that ln(2)'s cancel
-    lnpsi1 = (beta/gamma) * np.log(np.exp(1)* gamma / beta)
-    lnpsi2 = beta * np.log(w) - w ** gamma
-    lnpsi = lnpsi1 + lnpsi2
-    idx = np.argwhere(np.log(eta) - lnpsi < 0).squeeze()[0]
-
-    return w_high[idx]
+    return 1 / (2 * np.pi * gamma) * gammafunc((beta + 1) / gamma)
 
 def morsespace(gamma, beta, N, *, high=None, eta=None, 
                pack_num=None, low=None, density=None):
@@ -708,6 +565,134 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
     freqs = high_freq * np.ones(N+1) / (r**np.arange(0, N+1))
     return freqs
 
+def morsehigh(gamma, beta, eta):
+    """High-frequency cutoff of the generalized Morse wavelets specified
+    by gamma and beta, with cutoff level eta
+
+    This function gives the highest possible radian frequency for which
+    the generalized Morse wavelet will have greater than eta times its
+    peak value at the Nyquist frequency. 
+
+    If f = morsefreq(gamma, beta) is the wavelet peak frequency, then
+        psi (pi * f / fhigh) <= eta * psi(f)
+    is the cutoff condition
+
+    Parameters
+    ----------
+    gamma : float
+        The gamma parameter of the Morse wavelet
+    beta : float
+        The beta parameter of the Morse wavelet
+    eta : float
+        The ratio of the frequency-domain wavelet at Nyquist
+        compared to its peak value.
+
+    References
+    ----------
+    Lilly (2017) - appendix
+    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
+    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsehigh.m
+    """
+
+    _check_gamma_beta(gamma, beta)
+
+    if eta is None:
+        eta = 0.1
+    if not eta >= 0 and eta <= 1:
+        raise ValueError("eta must be between 0 and 1")
+
+    N = 10000
+    w_high = np.linspace(1e-12, np.pi, N)
+    
+    w = morsefreq(gamma, beta) * np.pi / w_high
+
+    #  Use logs to avoid errors for really small gammas
+    #  Note that ln(2)'s cancel
+    lnpsi1 = (beta/gamma) * np.log(np.exp(1)* gamma / beta)
+    lnpsi2 = beta * np.log(w) - w ** gamma
+    lnpsi = lnpsi1 + lnpsi2
+    idx = np.argwhere(np.log(eta) - lnpsi < 0).squeeze()[0]
+
+    return w_high[idx]
+
+def morselow(gamma, beta, pack_num, N):
+    """Low frequency cutoff of the generalized Morse wavelet specified
+    by gamma and beta, with cutoff determined by the r level and length
+    N of the wavelet.
+
+    The cutoff frequency is chosen such that the lowest-frequency wavelet
+    will reach some number r times its central window width at the ends
+    of the time series. 
+
+    Parameters
+    ----------
+    gamma : float
+        Gamma parameter of the Morse wavelet
+    beta : float
+        Beta parameter of the Morse wavelet
+    pack_num : float
+        The r-level/packing number. A choice of r=1 corresponds to 
+        roughly 95% of the time-domain wavelet energy being contained
+        within the time series endpoints for a wavelet at the center
+        of the domain.
+    N : float
+        The length of the wavelet
+
+    References
+    ----------
+    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
+    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsespace.m
+    """
+
+    _check_gamma_beta(gamma, beta)
+
+    if pack_num is None:
+        pack_num = 5
+    if not pack_num > 0:
+        raise ValueError("pack_num must be positive")
+
+    if N < 2:
+        raise ValueError("N must be at least 2")
+
+    p, _, _ = morseprops(gamma, beta)
+
+    return 2 * np.sqrt(2) * p * pack_num / N
+
+def morseprops(gamma, beta):
+    """Computes properties of the demodulated generalized Morse wavelets
+
+    Parameters
+    ----------
+    gamma : float
+        Gamma parameter of the Morse wavelet
+    beta : float
+        Beta parameter of the Morse wavelet
+    
+    Returns
+    -------
+    p : float
+        The dimensionless time-domain window width
+    skew : float
+        Imaginary part of the time-domain demodulate, or 'demodulate
+        skewness'
+    kurt : float
+        Normalized fourth moment of the time-domain demodulate, or
+        'demodulate kurtosis'
+
+    References
+    ----------
+    Lilly & Olhede (2008b)
+    - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
+    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morseprops.m
+    """
+
+    _check_gamma_beta(gamma, beta)
+
+    p = np.sqrt(gamma * beta)
+    skew = (gamma - 3) / beta
+    kurt = 3 - np.square(skew) - 2 / np.square(p)
+    
+    return p, skew, kurt
 
 def _check_gamma_beta(gamma, beta):
 
