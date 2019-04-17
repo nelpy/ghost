@@ -219,7 +219,8 @@ def morseafunc(gamma, beta, *, normalization=None, order=None):
 
     References
     ----------
-    Lilly and Olhede (2009)
+    - Lilly and Olhede (2009).  Higher-order properties of analytic wavelets.
+    IEEE Trans. Sig. Proc., 57 (1), 146--160.
     - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
     https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morseafun.m
     """
@@ -517,7 +518,9 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
 
     References
     ----------
-    Lilly (2016)
+    - Lilly (2017). Element analysis: a wavelet-based method for analysing
+    time-localized events in noisy time series. Proceedings of the Royal
+    Society A. Volume 473: 20160776, 2017, pp. 1–28
     - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
     https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsespace.m
     """
@@ -564,7 +567,9 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
     N = int(np.floor( np.log(high_freq/low_freq) / np.log(r) ))
     #N = int(np.log2(high/low) * voices_per_octave)
     freqs = high_freq * np.ones(N+1) / (r**np.arange(0, N+1))
-    return freqs
+
+    # so that we returning ascending order
+    return np.flip(freqs)
 
 def morsehigh(gamma, beta, eta):
     """High-frequency cutoff of the generalized Morse wavelets specified
@@ -590,7 +595,9 @@ def morsehigh(gamma, beta, eta):
 
     References
     ----------
-    Lilly (2017) - appendix
+    - Lilly (2017). Element analysis: a wavelet-based method for analysing
+    time-localized events in noisy time series. Proceedings of the Royal
+    Society A. Volume 473: 20160776, 2017, pp. 1–28
     - JLAB (C) 2004--2016 J. M. Lilly and F. Rekibi
     https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsehigh.m
     """

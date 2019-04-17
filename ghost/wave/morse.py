@@ -35,7 +35,7 @@ class Morse(Wavelet):
 
         if freq is None:
             freq = 0.25 * self.fs
-        self.freq = freq  # will also set radian_freq
+        self.freq = freq  # will also set norm_radian_freq
 
         # MATLAB has default time bandwidth of 60 so we have similar
         # defaults
@@ -67,7 +67,6 @@ class Morse(Wavelet):
         """
 
         if length is None:
-            # Default length used for convolution, see transform.py
             length = 16384
         if length < 1:
             raise ValueError("length must at least 1 but got {}".
@@ -82,13 +81,13 @@ class Morse(Wavelet):
         psi, psif = morseutils.morsewave(length,
                                          self._gamma,
                                          self._beta, 
-                                         self._radian_freq,
+                                         self._norm_radian_freq,
                                          n_wavelets=1,
                                          normalization=normalization)
 
         return psi.squeeze(), psif.squeeze()
 
-    def generate_freqs(self, N, **kwargs):
+    def generate_omegas(self, N, **kwargs):
 
         return morseutils.morsespace(self._gamma, self._beta, N, **kwargs)
 
@@ -119,33 +118,35 @@ class Morse(Wavelet):
         self._fs = val
 
     @property
-    def freq(self):
+    def frequency(self):
 
         return self._freq
 
-    @freq.setter
-    def freq(self, val):
+    @frequency.setter
+    def frequency(self, val):
 
-        if not val > 0:
-            raise ValueError("freq must be positive but got {}"
-                             .format(val))
+        if not val > 0 and val <= self._fs/2:
+            raise ValueError("The frequency must be between 0"
+                             " and the Nyquist frequency {} Hz"
+                             " but got {}".format(self._fs / 2, val))
 
         self._freq = val
-        self._radian_freq = self._hz_to_norm_radians(val)
+        self._norm_radian_freq = self._hz_to_norm_radians(val)
 
     @property
-    def radian_freq(self):
+    def norm_radian_freq(self):
 
-        return self._radian_freq
+        return self._norm_radian_freq
 
-    @radian_freq.setter
-    def radian_freq(self, val):
+    @norm_radian_freq.setter
+    def norm_radian_freq(self, val):
 
-        if not val > 0:
-            raise ValueError("radian freq must be positive but got {}"
-                             .format(val))
+        if not val > 0 and val <= np.pi:
+            raise ValueError("The normalized radian frequency must"
+                             " be between 0 and the Nyquist frequency"
+                             " pi but got {]".format(val))
 
-        self._radian_freq = val
+        self._norm_radian_freq = val
         self._freq = self._norm_radians_to_hz(val)
 
     @property
@@ -173,13 +174,6 @@ class Morse(Wavelet):
             raise ValueError("beta must be positive")
 
         self._beta = val
-
-    @property
-    def norm_freq(self):
-        """Normalized frequency in radians,
-        where Nyquist is pi"""
-
-        return self._freq / (self._fs / 2) * np.pi
 
     @property
     def time_bandwidth(self):
