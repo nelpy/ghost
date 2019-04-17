@@ -149,6 +149,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             lb, ub = self._check_freq_bounds(freq_bounds,
                             self._norm_radians_to_hz(w_ref))
             mask = np.logical_and(freqs >= lb, freqs <= ub)
+            w = self._hz_to_norm_radians(freqs[mask])
 
         self._w = w
         self._freqs = self._norm_radians_to_hz(w)
