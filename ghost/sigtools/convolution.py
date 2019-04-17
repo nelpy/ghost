@@ -63,7 +63,7 @@ def fastconv_scipy(signal, kernel, *, mode=None, fft_length=None):
             raise ValueError("FFT length must be at least the kernel"
                              " size of {}".format(M))
     else:   # Choose good default fft_length
-        fft_length = 16384
+        fft_length = 65536
         while fft_length < M:
             fft_length *= 4
 
@@ -144,7 +144,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None,
             raise ValueError("FFT length must be at least the kernel"
                              " size of {}".format(M))
     else:   # Choose good default fft_length
-        fft_length = 16384
+        fft_length = 65536
         while fft_length < M:
             fft_length *= 4
 
@@ -162,7 +162,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None,
     # so we will follow that here
     x = pyfftw.zeros_aligned(fft_length, dtype='complex128')
     X = pyfftw.zeros_aligned(fft_length, dtype='complex128')
-    fft_sig = pyfftw.FFTW( x, X, 
+    fft_sig = pyfftw.FFTW( x, X,
                            direction='FFTW_FORWARD',
                            flags=['FFTW_ESTIMATE'], 
                            threads=n_threads, 
@@ -170,7 +170,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None,
 
     y = pyfftw.zeros_aligned(fft_length, dtype='complex128')
     Y = pyfftw.zeros_aligned(fft_length, dtype='complex128')
-    fft_kernel = pyfftw.FFTW( y, Y, 
+    fft_kernel = pyfftw.FFTW( y, Y,
                               direction='FFTW_FORWARD', 
                               flags=['FFTW_ESTIMATE'], 
                               threads=n_threads, 
@@ -191,11 +191,11 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None,
     fft_conv_inv = pyfftw.FFTW(conv_fd, conv_td,
                           direction='FFTW_BACKWARD', 
                           flags=['FFTW_ESTIMATE', 'FFTW_DESTROY_INPUT'], 
-                          threads=n_threads, 
+                          threads=n_threads,
                           planning_timelimit=5 )
 
     res = np.zeros(tot_length, dtype='<c16')
-    
+
     starts = range(0, N, chunksize)
     for start in starts:
         length = min(chunksize, N - start)

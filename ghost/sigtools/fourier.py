@@ -56,7 +56,7 @@ def chirpz_dft(x):
 
     x_chirp = x*W   # Modulate with chirp
 
-    kernel = np.hstack( (W[N:0:-1].conj(),W.conj()) )
+    kernel = np.hstack( (W[N:0:-1].conj(), W.conj()) )
 
     # In the convolution, can choose an efficient length
     # DFT - OK to pad input data

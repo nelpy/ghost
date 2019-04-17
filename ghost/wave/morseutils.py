@@ -14,7 +14,10 @@ __all__ = ['morsewave', 'morseafunc', 'morsefreq', 'morsemom',
 # so that 'bottom-level' methods are close to the 'top-level'
 # methods. An alternative organization to group all private
 # methods (starting with underscore) together but I think
-# it makes more sense this way
+# it makes more sense this way.
+# These functions are preferably accessed through a Morse
+# class instance but can be used directly from here if
+# desired
 
 def morsewave(N, gamma, beta, freqs, *, n_wavelets=None,
               normalization=None):
@@ -36,8 +39,8 @@ def morsewave(N, gamma, beta, freqs, *, n_wavelets=None,
     normalization : string, optional
         Normalization type.
         If 'bandpass', the DFT of the wavelet has a peak value of 2
-        If 'energy', the time-domain wavelet energy sum(abs(psi)**2, 1)
-        is 1.
+        If 'energy', the time-domain wavelet energy sum(abs(psi)**2)
+        is 1 for each frequency requested
         Default is 'bandpass'
 
     Returns
@@ -62,7 +65,7 @@ def morsewave(N, gamma, beta, freqs, *, n_wavelets=None,
 
     if n_wavelets is None:
         n_wavelets = 1
-    if n_wavelets <= 0:
+    if not n_wavelets > 0:
         raise ValueError("n_wavelets must be positive")
     
     if normalization is None:
@@ -101,7 +104,7 @@ def _morsewave(N, n_wavelets, gamma, beta, freqs, *, normalization=None):
 
     if n_wavelets is None:
         n_wavelets = 1
-    if n_wavelets <= 0:
+    if not n_wavelets > 0:
         raise ValueError("n_wavelets must be positive")
 
     if normalization is None:
@@ -139,10 +142,8 @@ def _morsewave(N, n_wavelets, gamma, beta, freqs, *, normalization=None):
     X[X == np.inf] = 0
     X[X == np.nan] = 0
 
-    #####################################################
-    # Verify this
-    wmat = np.tile(w, (n_wavelets, 1, freqs.size)).T
-    #####################################################
+    wmat = np.broadcast_to(w[:, None, None], (len(w), 1, n_wavelets))
+
     Xr = X * np.exp(1j * wmat * (N + 1) / 2 * fact) # ensures wavelets are centered
     
     x = np.fft.ifft(Xr, axis=0)
@@ -233,7 +234,7 @@ def morseafunc(gamma, beta, *, normalization=None, order=None):
     if order is None:
         order = 1
     if order < 0:
-        raise ValueError("Order must at least be 0")
+        raise ValueError("Order must non-negative")
 
     if normalization =='bandpass':
         w_p = morsefreq(gamma, beta, nout=1)
@@ -377,7 +378,7 @@ def morsemom(p, gamma, beta, *, nout=None):
     _check_gamma_beta(gamma, beta)
 
     if p < 0:
-        raise ValueError("p must be positive")
+        raise ValueError("p must be non-negative")
 
     if nout is None:
         nout = 1
@@ -528,7 +529,7 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
 
     if eta is None:
         eta = 0.1
-    if not eta >= 0 and eta <= 1:
+    if eta < 0 or eta > 1:
         raise ValueError("eta must be between 0 and 1")
 
     if high is None:
@@ -547,7 +548,7 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
         raise ValueError("low must be between 0 and pi")
     
     if density is None:
-        density = 4
+        density = 2
     if not density > 0:
         raise ValueError("density must be positive")
 
@@ -598,7 +599,7 @@ def morsehigh(gamma, beta, eta):
 
     if eta is None:
         eta = 0.1
-    if not eta >= 0 and eta <= 1:
+    if eta < 0 or eta > 1:
         raise ValueError("eta must be between 0 and 1")
 
     N = 10000
