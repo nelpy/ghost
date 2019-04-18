@@ -12,6 +12,7 @@ from . import wavelet as wavedef
 from . import morlet
 from . import morse
 from .. import sigtools
+#from ..formats import standardize_asa_1d
 from ..formats import preprocessing as pre
 from ..formats import postprocessing as post
 
@@ -51,6 +52,7 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._fs = None
         self._amplitude = None
         self._power = None
+        self._time = None
         self._epochs = None
 
     def transform(self, obj, fs, *, lengths=None, freq_limits=None,
@@ -151,19 +153,25 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._frequencies = f
         self._wavelet.fs = self._fs  # Set the wavelet's sampling rate accordingly
 
+        # Tells us how 
+        wave_lengths = self.wavelet.compute_lengths(
+                            self._hz_to_norm_radians(self._frequencies)).tolist()
+
         # Set up array as C contiguous since we will be iterating row-by-row
         out_array = np.zeros((len(self._frequencies), input_asarray.shape[-1]))
 
         def wavelet_conv(param):
             """The function that does the wavelet convolution"""
 
-            idx, freq = param
+            idx, freq, length = param
             # We need to copy because we might have multiple instances of this function
             # running in parallel. Each instance needs its own wavelet with which to
             # do the convolution
             wv = self._wavelet.copy()
             wv.norm_radian_freq = self._hz_to_norm_radians(freq)
-            kernel, _ = wv.get_wavelet(60000)
+
+            print(self._hz_to_norm_radians(freq), freq, length)
+            kernel, _ = wv.get_wavelet(length)
 
             if verbose:
                 print("Processing frequency {} Hz".format(freq))
@@ -178,7 +186,8 @@ class ContinuousWaveletTransform(WaveletTransform):
                            " running this function in parallel (single process,"
                            " multithreaded). Experimentation recommended."))
             pool = ThreadPool(cpu_count())
-            it = [(idx, freq) for idx, freq in enumerate(np.flip(self._frequencies))]
+            it = [(idx, freq, length) for idx, (freq, length) in 
+                    enumerate(zip(np.flip(self._frequencies), np.flip(wave_lengths)))]
             start_time = time.time()
             pool.map(wavelet_conv, it, chunksize=1)
             pool.close()
@@ -187,8 +196,9 @@ class ContinuousWaveletTransform(WaveletTransform):
             start_time = time.time()
             # so that matrix is goes from high frequencies
             # at the origin to low frequencies
-            for ii, freq in enumerate(np.flip(self._frequencies)):
-                wavelet_conv((ii, freq))
+            for ii, (freq, length) in enumerate(
+                zip(np.flip(self._frequencies), np.flip(wave_lengths))):
+                wavelet_conv((ii, freq, length))
 
         if verbose:
             print("Elapsed time (only wavelet convolution): {} seconds"
@@ -197,7 +207,7 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         self._amplitude = out_array
 
-    def plot(self, kind=None, ax=None):
+    def plot(self, kind=None, timescale=None, ax=None):
 
         if kind is None:
             kind = 'amplitude'
@@ -205,18 +215,32 @@ class ContinuousWaveletTransform(WaveletTransform):
             raise ValueError("'kind' must be 'amplitude' or 'power', but"
                              " got {}".format(kind))
 
-        if ax is None:
-            ax = plt.gca()
+        if timescale is None:
+            timescale = 'seconds'
+            xlabel = "Time (sec)"
+        if timescale not in ('seconds', 'minutes', 'hours'):
+            raise ValueError("timescale must be 'seconds', 'minutes', or"
+                            " 'hours' but got {}".format(timescale))
 
         timevec = np.arange(self._amplitude.shape[1]) / self._fs
+        if timescale == 'minutes':
+            timevec /= 60
+            xlabel = "Time (min)"
+        if timescale == 'hours':
+            timevec /= 3600
+            xlabel = "Time (hr)"
+
         if kind == 'amplitude':
             data = self._amplitude
         else:
             data = np.square(self._amplitude)
 
+        if ax is None:
+            ax = plt.gca()
+
         ax.pcolormesh(timevec, np.flip(self._frequencies), data)
         ax.set_ylabel("Frequency (Hz)")
-        ax.set_xlabel("Time (sec)")
+        ax.set_xlabel(xlabel)
 
     def _norm_radians_to_hz(self, val):
 
@@ -288,7 +312,8 @@ class ContinuousWaveletTransform(WaveletTransform):
     def wavelet(self, wav):
         
         if wav.fs != self._fs:
-            raise ValueError("Wavelet must have same sampling rate as input data")
+            raise ValueError("Wavelet must have same sampling rate as"
+                             " input data")
         if not isinstance(wav, wavedef.Wavelet):
             raise TypeError("The wavelet must be of type ghost.Wavelet")
         if wav.get_wavelet().ndim != 1:
@@ -316,4 +341,15 @@ class ContinuousWaveletTransform(WaveletTransform):
     def power(self, val):
 
         raise ValueError("Overriding the power attribute is not"
+                         " allowed")
+
+    @property
+    def time(self, val):
+
+        return self._time
+
+    @time.setter
+    def time(self, val):
+
+        raise ValueError("Overriding the time attribute is not"
                          " allowed")

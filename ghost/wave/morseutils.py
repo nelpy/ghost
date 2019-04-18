@@ -175,7 +175,7 @@ def _morsewave_first_family(fact, N, n_wavelets, gamma, beta,
     r = (2 * beta + 1) / gamma
     c = r - 1
     L = 0 * w
-    index = np.arange(round(N / 2))
+    index = np.arange(round(N / 2)).astype(int)
     psif = np.zeros((len(psizero), 1, n_wavelets))
 
     for nn in range(n_wavelets):
@@ -314,7 +314,7 @@ def morsefreq(gamma, beta, *, nout=None):
 
     fm = np.exp( (np.log(beta) - np.log(gamma)) / gamma )
     
-    if nout > 2:
+    if nout > 1:
         fe = (1 / (2 ** (1 / gamma))
               * gammafunc((2 * beta + 2) / gamma)
               / gammafunc((2 * beta + 1) / gamma))
@@ -571,7 +571,7 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
     # so that we returning ascending order
     return np.flip(freqs)
 
-def morsehigh(gamma, beta, eta):
+def morsehigh(gamma, beta, eta=None):
     """High-frequency cutoff of the generalized Morse wavelets specified
     by gamma and beta, with cutoff level eta
 
@@ -589,9 +589,10 @@ def morsehigh(gamma, beta, eta):
         The gamma parameter of the Morse wavelet
     beta : float
         The beta parameter of the Morse wavelet
-    eta : float
+    eta : float, optional
         The ratio of the frequency-domain wavelet at Nyquist
         compared to its peak value.
+        Default is 0.1
 
     References
     ----------

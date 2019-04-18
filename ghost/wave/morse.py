@@ -91,6 +91,22 @@ class Morse(Wavelet):
 
         return morseutils.morsespace(self._gamma, self._beta, N, **kwargs)
 
+    def compute_lengths(self, norm_radian_freqs):
+
+        # Peak frequency of mother wavelet
+        w0 = morseutils.morsefreq(self._gamma, self._beta)
+
+        # 4 times the mother wavelet footprint to be safe
+        # see Lilly 2017 for reference
+        base_length = (2 * np.sqrt(2) * self._gamma * self._beta
+                        / w0 * 4)
+
+        scale_fact = w0 / norm_radian_freqs
+
+        # lower frequencies require more samples
+        # and higher frequencies fewer
+        return np.ceil(scale_fact * base_length).astype(int)
+
     def copy(self):
 
         return copy.deepcopy(self)
