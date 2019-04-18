@@ -153,7 +153,6 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._frequencies = f
         self._wavelet.fs = self._fs  # Set the wavelet's sampling rate accordingly
 
-        # Tells us how 
         wave_lengths = self.wavelet.compute_lengths(
                             self._hz_to_norm_radians(self._frequencies)).tolist()
 
@@ -170,7 +169,6 @@ class ContinuousWaveletTransform(WaveletTransform):
             wv = self._wavelet.copy()
             wv.norm_radian_freq = self._hz_to_norm_radians(freq)
 
-            print(self._hz_to_norm_radians(freq), freq, length)
             kernel, _ = wv.get_wavelet(length)
 
             if verbose:
