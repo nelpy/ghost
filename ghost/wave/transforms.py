@@ -225,7 +225,8 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._amplitude = out_array
 
     def plot(self, *, kind=None, timescale=None, logscale=None, 
-             standardize=None, time_limits=None, freq_limits=None,
+             standardize=None, relative_time=None, center_time=None,
+             time_limits=None, freq_limits=None,
              ax=None, **kwargs):
         """Plots the CWT spectrogram.
 
@@ -236,7 +237,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             Default is 'amplitude'
         timescale : string, optional
             The time scale to use on the plot's x-axis. Can be
-            'seconds', 'minutes', or 'hours'.
+            'milliseconds', seconds', 'minutes', or 'hours'.
             Default is 'seconds'
         logscale : boolean, optional
             Whether to plot the frequencies axis with a log scale.
@@ -245,6 +246,13 @@ class ContinuousWaveletTransform(WaveletTransform):
             Whether to plot the standardized spectrogram i.e.
             zero mean and unit standard deviation along the
             time axis
+            Default is False
+        relative_time : boolean, optional
+            Whether the time axis shown on the plot will be relative
+            Default is False
+        center_time : boolean, optional
+            Whether the time axis is centered around 0. This option
+            is only available if 'relative_time' is se to True
             Default is False
         time_limits : nelpy.EpochArray, np.ndarray, or list, optional
             nelpy.EpochArray containing the epoch of interest, or a
@@ -277,10 +285,9 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         if timescale is None:
             timescale = 'seconds'
-            xlabel = "Time (sec)"
-        if timescale not in ('seconds', 'minutes', 'hours'):
-            raise ValueError("timescale must be 'seconds', 'minutes', or"
-                            " 'hours' but got {}".format(timescale))
+        if timescale not in ('milliseconds', 'seconds', 'minutes', 'hours'):
+            raise ValueError("timescale must be 'milliseconds', seconds',"
+                             " 'minutes', or 'hours' but got {}".format(timescale))
 
         if logscale is None:
             logscale = True
@@ -293,6 +300,21 @@ class ContinuousWaveletTransform(WaveletTransform):
         if standardize not in (True, False):
             raise ValueError("'standardize' must be True or False but got {}".
                              format(standardize))
+
+        if relative_time is None:
+            relative_time = False
+        if relative_time not in (True, False):
+            raise ValueError("'relative_time' must be True or False but got {}".
+                             format(relative_time))
+
+        if center_time is None:
+            center_time = False
+        if center_time not in (True, False):
+            raise ValueError("'center_time' must be True or False but got {}".
+                             format(center_time))
+        if center_time and not relative_time:
+            raise ValueError("'relative_time' must be True to use option"
+                             " 'center_time'")    
 
         if time_limits is None:
             time_slice = slice(None)
@@ -341,7 +363,10 @@ class ContinuousWaveletTransform(WaveletTransform):
             data = ((data - data.mean(axis=1, keepdims=True)) 
                      / data.std(axis=1, keepdims=True))
 
-        if timescale == 'seconds':
+        if timescale == 'milliseconds':
+            timevec = timevec * 1000
+            xlabel = "Time (msec)"
+        elif timescale == 'seconds':
             xlabel = "Time (sec)"
         elif timescale == 'minutes':
             timevec = timevec / 60
@@ -349,6 +374,17 @@ class ContinuousWaveletTransform(WaveletTransform):
         else:
             timevec = timevec / 3600
             xlabel = "Time (hr)"
+
+        if relative_time:
+            if center_time:
+                if len(timevec) & 1:
+                    center_val = timevec[len(timevec)//2]
+                else:
+                    idx = len(timevec)//2 - 1
+                    center_val = (timevec[idx] + timevec[idx]) / 2
+                timevec -= center_val
+            else:
+                timevec -= timevec[0]
 
         if ax is None:
             ax = plt.gca()
