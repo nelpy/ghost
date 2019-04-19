@@ -451,8 +451,6 @@ class ContinuousWaveletTransform(WaveletTransform):
                              " input data")
         if not isinstance(wav, wavedef.Wavelet):
             raise TypeError("The wavelet must be of type ghost.Wavelet")
-        if wav.get_wavelet().ndim != 1:
-            raise ValueError("Wavelet must be 1D")
 
         self._wavelet = wav
 
