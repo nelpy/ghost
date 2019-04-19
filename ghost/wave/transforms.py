@@ -221,16 +221,14 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         self._amplitude = out_array
 
-    def plot(self, kind=None, timescale=None, logscale=None, ax=None, **kwargs):
+    def plot(self, kind=None, timescale=None, logscale=None, 
+             time_limits=None, freq_limits=None, ax=None, **kwargs):
 
         if kind is None:
             kind = 'amplitude'
         if kind not in ('amplitude, power'):
             raise ValueError("'kind' must be 'amplitude' or 'power', but"
                              " got {}".format(kind))
-
-        if logscale is None:
-            logscale = False
 
         if timescale is None:
             timescale = 'seconds'
@@ -239,14 +237,36 @@ class ContinuousWaveletTransform(WaveletTransform):
             raise ValueError("timescale must be 'seconds', 'minutes', or"
                             " 'hours' but got {}".format(timescale))
 
-        if timescale == 'seconds':
-            timevec = self._time
-        elif timescale == 'minutes':
-            timevec = self._time / 60
-            xlabel = "Time (min)"
+        if logscale is None:
+            logscale = False
+        if logscale not in (True, False):
+            raise ValueError("'logscale' must be True or False but got {}".
+                             format(logscale))
+
+        if time_limits is None:
+            time_slice = slice(None)
         else:
-            timevec = self._time / 3600
-            xlabel = "Time (hr)"
+            try:
+                if isinstance(time_limits, nel.EpochArray):
+                    time_limits = time_limits.data
+                    if time_limits.shape[0] != 1:
+                        raise ValueError("Detected {} epochs but can only restrict"
+                                         " spectrogram plot to 1 epoch".
+                                         format(time_limits.shape[0]))
+                elif isinstance(time_limits, (np.ndarray, list)):
+                    time_limits = np.array(time_limits)
+                else:
+                    raise TypeError("'time_limits' must be of type nelpy.EpochArray"
+                                    "or np.ndarray but got {}".format(type(time_limits)))
+            except NameError:
+                pass
+            time_slice = self._restrict_plot_time(time_limits)
+
+        if freq_limits is None:
+            freq_slice = slice(None)
+            data_freq_slice = slice(None)
+        else:
+            freq_slice, data_freq_slice = self._restrict_plot_freq(freq_limits)
 
         if kind == 'amplitude':
             data = self._amplitude
@@ -255,10 +275,23 @@ class ContinuousWaveletTransform(WaveletTransform):
             data = np.square(self._amplitude)
             title = 'Wavelet Power Spectrogram'
 
+        timevec = self._time[time_slice]
+        freqvec = self._frequencies[freq_slice]
+        data = data[data_freq_slice, time_slice]
+
+        if timescale == 'seconds':
+            xlabel = "Time (sec)"
+        elif timescale == 'minutes':
+            timevec = timevec / 60
+            xlabel = "Time (min)"
+        else:
+            timevec = timevec / 3600
+            xlabel = "Time (hr)"
+
         if ax is None:
             ax = plt.gca()
 
-        time, freq = np.meshgrid(timevec, np.flip(self._frequencies))
+        time, freq = np.meshgrid(timevec, np.flip(freqvec))
         ax.contourf(time, freq, data, **kwargs)
         if logscale:
             ax.set_yscale('log')
@@ -298,6 +331,20 @@ class ContinuousWaveletTransform(WaveletTransform):
             ub = ub_ref
 
         return lb, ub
+
+    def _restrict_plot_time(self, limits):
+
+        tstart, tstop = np.searchsorted(self._time, limits)
+
+        return slice(tstart, tstop)
+
+    def _restrict_plot_freq(self, limits):
+
+        f0, f1 = np.searchsorted(self._frequencies, limits)
+        fstart = len(self._frequencies) - f1
+        fstop = len(self._frequencies) - f0
+
+        return slice(f0, f1), slice(fstart, fstop)
 
     @property
     def fs(self):
