@@ -247,6 +247,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             time_slice = slice(None)
         else:
             try:
+                # nelpy installed
                 if isinstance(time_limits, nel.EpochArray):
                     time_limits = time_limits.data
                     if time_limits.shape[0] != 1:
@@ -259,7 +260,13 @@ class ContinuousWaveletTransform(WaveletTransform):
                     raise TypeError("'time_limits' must be of type nelpy.EpochArray"
                                     "or np.ndarray but got {}".format(type(time_limits)))
             except NameError:
-                pass
+                # nelpy not installed
+                if isinstance(time_limits, (np.ndarray, list)):
+                    time_limits = np.array(time_limits)
+                else:
+                    raise TypeError("'time_limits' must be of type nelpy.EpochArray"
+                                    "or np.ndarray but got {}".format(type(time_limits)))
+
             time_slice = self._restrict_plot_time(time_limits)
 
         if freq_limits is None:
