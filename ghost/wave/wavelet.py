@@ -12,9 +12,9 @@ class Wavelet(ABC):
     def __repr__(self):
         return self.__class__.__name__
 
-    @abstractmethod
-    def get_wavelet(self):
-        pass
+    # @abstractmethod
+    # def get_wavelet(self):
+    #     pass
 
     @abstractmethod
     def copy(self):

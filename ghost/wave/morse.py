@@ -47,7 +47,7 @@ class Morse(Wavelet):
         self.gamma = gamma
         self.beta = beta
 
-    def get_wavelet(self, length, *, normalization=None):
+    def __call__(self, length, *, normalization=None):
         """Gets wavelet representation
 
         Parameters

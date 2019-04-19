@@ -185,7 +185,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             wv = self._wavelet.copy()
             wv.norm_radian_freq = self._hz_to_norm_radians(freq)
 
-            kernel, _ = wv.get_wavelet(length)
+            kernel, _ = wv(length)
 
             if verbose:
                 print("Processing frequency {} Hz".format(freq))
@@ -220,13 +220,16 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         self._amplitude = out_array
 
-    def plot(self, kind=None, timescale=None, ax=None):
+    def plot(self, kind=None, timescale=None, logscale=None, ax=None, **kwargs):
 
         if kind is None:
             kind = 'amplitude'
         if kind not in ('amplitude, power'):
             raise ValueError("'kind' must be 'amplitude' or 'power', but"
                              " got {}".format(kind))
+
+        if logscale is None:
+            logscale = False
 
         if timescale is None:
             timescale = 'seconds'
@@ -245,15 +248,22 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         if kind == 'amplitude':
             data = self._amplitude
+            title = 'Wavelet Amplitude Spectrogram'
         else:
             data = np.square(self._amplitude)
+            title = 'Wavelet Power Spectrogram'
 
         if ax is None:
             ax = plt.gca()
 
-        ax.pcolormesh(timevec, np.flip(self._frequencies), data)
-        ax.set_ylabel("Frequency (Hz)")
+        time, freq = np.meshgrid(timevec, np.flip(self._frequencies))
+        ax.contourf(time, freq, data, **kwargs)
+        if logscale:
+            ax.set_yscale('log')
+
+        ax.set_title(title)
         ax.set_xlabel(xlabel)
+        ax.set_ylabel("Frequency (Hz)")
 
     def _norm_radians_to_hz(self, val):
 
