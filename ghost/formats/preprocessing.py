@@ -99,14 +99,17 @@ def standardize_asa(func=None, *, x, abscissa_vals=None, fs=None,
                     else:
                         data_ = x_._data_colsig
                         
-                    ep = np.insert(np.sum(x_.lengths), 0, 0)
+                    ep = np.insert(x_.lengths, 0, 0)
                     epoch_bounds = np.hstack((ep[:-1][:, None], ep[1:][:, None]))
                     kwargs['epoch_bounds'] = epoch_bounds
 
                     if kw:
                         kwargs[x] = data_
                     else:
-                        args = tuple([arg if ii > 0 else data_ for (ii, arg) in enumerate(args)])
+                        if class_method:
+                            args = tuple([arg if ii != 1 else data_ for (ii, arg) in enumerate(args)])
+                        else:
+                            args = tuple([arg if ii > 0 else data_ for (ii, arg) in enumerate(args)])
 
                     return function(*args, **kwargs)
             

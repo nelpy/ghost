@@ -110,8 +110,8 @@ class ContinuousWaveletTransform(WaveletTransform):
         if voices_per_octave is None:
             voices_per_octave = 10
         if voices_per_octave not in np.arange(4, 50, step=2):
-            raise ValueError("'voices_per_octave' must be between 4 and 48,"
-                             " inclusive")
+            raise ValueError("'voices_per_octave' must be an even number"
+                             " between 4 and 48, inclusive")
 
         if parallel is None:
             parallel = False
@@ -127,17 +127,14 @@ class ContinuousWaveletTransform(WaveletTransform):
             import pyfftw
             convfun = sigtools.fastconv_fftw
         except:
-            warnings.warn("Module 'pyfftw' not found, using scipy backend")
+            logging.warn("Module 'pyfftw' not found, using scipy backend")
             convfun = sigtools.fastconv_scipy
 
         # need to copy data since we're mutating it
         input_asarray = data.squeeze().copy()
         input_asarray -= np.mean(input_asarray)
         epoch_bounds = kwargs.pop('epoch_bounds', None)
-        if epoch_bounds is None:
-            raise ValueError("decorator didn't do its job!")
-
-        lengths = (np.diff(epoch_bounds, axis=1) - 1).astype(int)
+        lengths = (np.diff(epoch_bounds, axis=1)).astype(int)
 
         f_ref = self._norm_radians_to_hz(
                     self.wavelet.generate_omegas(np.min(lengths)))
@@ -163,8 +160,6 @@ class ContinuousWaveletTransform(WaveletTransform):
             mask = np.logical_and(f_ref >= lb, f_ref <= ub)
             f = f_ref[mask]
 
-        assert f[0] < f[-1]
-
         n_octaves = np.log2(f[-1] / f[0])
         J = np.floor(n_octaves) * voices_per_octave
         j = np.arange(J+1)
@@ -175,8 +170,8 @@ class ContinuousWaveletTransform(WaveletTransform):
         # this object uses
         self._wavelet.fs = self._fs
 
-        wave_lengths = self.wavelet.compute_lengths(
-                            self._hz_to_norm_radians(self._frequencies)).tolist()
+        wavelet_lengths = self.wavelet.compute_lengths(
+                              self._hz_to_norm_radians(self._frequencies)).tolist()
 
         # Set up array as C contiguous since we will be iterating row-by-row
         out_array = np.zeros((len(self._frequencies), input_asarray.shape[-1]))
@@ -201,22 +196,25 @@ class ContinuousWaveletTransform(WaveletTransform):
                 out_array[idx, start:stop] = np.abs(res)
 
         if parallel:
-            warnings.warn(("You may not get as large a speedup as you hoped for by"
-                           " running this function in parallel (single process,"
-                           " multithreaded). Experimentation recommended."))
+            logging.warn(("You may not get as large a speedup as you hoped for by"
+                          " running this function in parallel (single process,"
+                          " multithreaded). Experimentation recommended."))
             pool = ThreadPool(cpu_count())
+            # Order the frequencies such that the transform matrix starts
+            # from the high frequencies at the origin
             it = [(idx, freq, length) for idx, (freq, length) in 
-                    enumerate(zip(np.flip(self._frequencies), np.flip(wave_lengths)))]
+                    enumerate(zip(np.flip(self._frequencies), 
+                                  np.flip(wavelet_lengths)))]
             start_time = time.time()
             pool.map(wavelet_conv, it, chunksize=1)
             pool.close()
             pool.join()
         else:
             start_time = time.time()
-            # so that matrix is goes from high frequencies
-            # at the origin to low frequencies
+            # Order the frequencies such that the transform matrix starts
+            # from the high frequencies at the origin
             for ii, (freq, length) in enumerate(
-                zip(np.flip(self._frequencies), np.flip(wave_lengths))):
+                zip(np.flip(self._frequencies), np.flip(wavelet_lengths))):
                 wavelet_conv((ii, freq, length))
 
         if verbose:
@@ -227,7 +225,8 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._amplitude = out_array
 
     def plot(self, *, kind=None, timescale=None, logscale=None, 
-             time_limits=None, freq_limits=None, ax=None, **kwargs):
+             standardize=None, time_limits=None, freq_limits=None,
+             ax=None, **kwargs):
         """Plots the CWT spectrogram.
 
         Parameters
@@ -242,6 +241,11 @@ class ContinuousWaveletTransform(WaveletTransform):
         logscale : boolean, optional
             Whether to plot the frequencies axis with a log scale.
             Default is True
+        standardize : boolean, optional
+            Whether to plot the standardized spectrogram i.e.
+            zero mean and unit standard deviation along the
+            time axis
+            Default is False
         time_limits : nelpy.EpochArray, np.ndarray, or list, optional
             nelpy.EpochArray containing the epoch of interest, or a
             list or ndarray consisting of [lower_bound, upper_bound]
@@ -283,6 +287,12 @@ class ContinuousWaveletTransform(WaveletTransform):
         if logscale not in (True, False):
             raise ValueError("'logscale' must be True or False but got {}".
                              format(logscale))
+
+        if standardize is None:
+            standardize = False
+        if standardize not in (True, False):
+            raise ValueError("'standardize' must be True or False but got {}".
+                             format(standardize))
 
         if time_limits is None:
             time_slice = slice(None)
@@ -326,6 +336,10 @@ class ContinuousWaveletTransform(WaveletTransform):
         timevec = self._time[time_slice]
         freqvec = self._frequencies[freq_slice]
         data = data[data_freq_slice, time_slice]
+
+        if standardize:
+            data = ((data - data.mean(axis=1, keepdims=True)) 
+                     / data.std(axis=1, keepdims=True))
 
         if timescale == 'seconds':
             xlabel = "Time (sec)"
@@ -382,6 +396,7 @@ class ContinuousWaveletTransform(WaveletTransform):
 
     def _restrict_plot_time(self, limits):
 
+        limits = np.atleast_1d(limits.squeeze())
         tstart, tstop = np.searchsorted(self._time, limits)
 
         return slice(tstart, tstop)
