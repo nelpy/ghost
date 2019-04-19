@@ -239,12 +239,13 @@ class ContinuousWaveletTransform(WaveletTransform):
             raise ValueError("timescale must be 'seconds', 'minutes', or"
                             " 'hours' but got {}".format(timescale))
 
-        timevec = self._time
-        if timescale == 'minutes':
-            timevec = timevec / 60  # do NOT do in-place
+        if timescale == 'seconds':
+            timevec = self._time
+        elif timescale == 'minutes':
+            timevec = self._time / 60
             xlabel = "Time (min)"
-        if timescale == 'hours':
-            timevec = timevec / 3600 # do NOT do in-place
+        else:
+            timevec = self._time / 3600
             xlabel = "Time (hr)"
 
         if kind == 'amplitude':
