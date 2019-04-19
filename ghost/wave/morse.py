@@ -16,7 +16,10 @@ class Morse(Wavelet):
 
         Parameters
         ----------
-        freq : float
+        fs : float, optional
+            The sampling rate in Hz.
+            Default is 1
+        freq : float, optional
             Frequency at which the wavelet reaches its peak value
             in the frequency domain, in units of Hz
         gamma : float, optional

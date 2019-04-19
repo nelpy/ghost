@@ -53,16 +53,14 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._amplitude = None
         self._power = None
         self._time = None
-        self._epochs = None
 
     @pre.standardize_asa(x='data', fs='fs', n_signals=1, 
                          class_method=True, abscissa_vals='timestamps')
     def transform(self, data, *, timestamps=None, fs=None, freq_limits=None,
                   freqs=None, voices_per_octave=None, parallel=None,
                   verbose=None, **kwargs):
-        """Does a continuous wavelet transform. The output is a power
-        spectrogram
-        
+        """Does a continuous wavelet transform.
+
         Parameters
         ----------
         data : numpy.ndarray or nelpy.RegularlySampledAnalogSignalArray
@@ -73,11 +71,6 @@ class ContinuousWaveletTransform(WaveletTransform):
             Timestamps corresponding to the data, in seconds.
             If None, they will be computed automatically based on the
             assumption that all the data are one contiguous block.
-        lengths : array-like, optional
-            Array-like object that specifies the blocksize (in elements)
-            of the data that should be treated as a contiguous segment.
-            If the input is a nelpy.RegularlySampledAnalogSignalArray,
-            the lengths will be automatically inferred.
         freq_limits : list, optional
             List of [lower_bound, upper_bound] for frequencies to use,
             in units of Hz. Note that a reference set of frequencies
@@ -94,8 +87,10 @@ class ContinuousWaveletTransform(WaveletTransform):
             'freqs' are outside the bounds determined by the reference
             set, 'freqs' will be adjusted such that all frequencies in
             'freqs' will be within those bounds.
-        voices_per_octave : float, optional
-            Number of wavelet frequencies per octave
+        voices_per_octave : int, optional
+            Number of wavelet frequencies per octave. Must be an even
+            integer between 4 and 48, inclusive.
+            Default is 10.
         parallel : boolean, optional
             Whether to run this function in parallel or not, using a
             single process, multithreaded model.
@@ -103,13 +98,20 @@ class ContinuousWaveletTransform(WaveletTransform):
         verbose : boolean, optional
             Whether to print messages displaying this function's progress.
             Default is False.
+
+        Returns
+        -------
+        None
         """
 
         self.fs = fs  # does input validation, nice!
         self._time = timestamps # already sanitized by decorator
 
         if voices_per_octave is None:
-            voices_per_octave = 16
+            voices_per_octave = 10
+        if voices_per_octave not in np.arange(4, 50, step=2):
+            raise ValueError("'voices_per_octave' must be between 4 and 48,"
+                             " inclusive")
 
         if parallel is None:
             parallel = False
@@ -168,7 +170,10 @@ class ContinuousWaveletTransform(WaveletTransform):
         j = np.arange(J+1)
         f = f[0]*2**(j/voices_per_octave)
         self._frequencies = f
-        self._wavelet.fs = self._fs  # Set the wavelet's sampling rate accordingly
+
+        # make sure wavelet's sampling rate matches the one
+        # this object uses
+        self._wavelet.fs = self._fs
 
         wave_lengths = self.wavelet.compute_lengths(
                             self._hz_to_norm_radians(self._frequencies)).tolist()
@@ -221,8 +226,44 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         self._amplitude = out_array
 
-    def plot(self, kind=None, timescale=None, logscale=None, 
+    def plot(self, *, kind=None, timescale=None, logscale=None, 
              time_limits=None, freq_limits=None, ax=None, **kwargs):
+        """Plots the CWT spectrogram.
+
+        Parameters
+        ----------
+        kind : string, optional
+            Type of spectrogram plot. Can be 'amplitude' or 'power'
+            Default is 'amplitude'
+        timescale : string, optional
+            The time scale to use on the plot's x-axis. Can be
+            'seconds', 'minutes', or 'hours'.
+            Default is 'seconds'
+        logscale : boolean, optional
+            Whether to plot the frequencies axis with a log scale.
+            Default is True
+        time_limits : nelpy.EpochArray, np.ndarray, or list, optional
+            nelpy.EpochArray containing the epoch of interest, or a
+            list or ndarray consisting of [lower_bound, upper_bound]
+            for the times to show on the plot. Units are seconds.
+            Default is show all time
+        freq_limits : np.ndarray or list, optional
+            ndarray or list specifying [lower_bound, upper_bound]
+            for the frequencies to display on the plot. Units
+            are in Hz.    
+            Default is to show all frequencies
+        ax : matplotlib axes object, optional
+            The axes on which the plot will be drawn
+        kwargs : optional
+            Other keyword arguments are passed to matplotlib's
+            'contourf' command.
+            Example: Draw 200 contours by passing in 'levels=200'
+
+        Returns
+        -------
+        ax : matplotlib axes object
+            The axes on which this plot was drawn
+        """
 
         if kind is None:
             kind = 'amplitude'
@@ -238,7 +279,7 @@ class ContinuousWaveletTransform(WaveletTransform):
                             " 'hours' but got {}".format(timescale))
 
         if logscale is None:
-            logscale = False
+            logscale = True
         if logscale not in (True, False):
             raise ValueError("'logscale' must be True or False but got {}".
                              format(logscale))
