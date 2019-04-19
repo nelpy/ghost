@@ -55,17 +55,24 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._time = None
         self._epochs = None
 
-    def transform(self, obj, fs, *, lengths=None, freq_limits=None,
-                  freqs=None, output=None, parallel=None, verbose=None):
+    @pre.standardize_asa(x='data', fs='fs', n_signals=1, 
+                         class_method=True, abscissa_vals='timestamps')
+    def transform(self, data, *, timestamps=None, fs=None, freq_limits=None,
+                  freqs=None, voices_per_octave=None, parallel=None,
+                  verbose=None, **kwargs):
         """Does a continuous wavelet transform. The output is a power
         spectrogram
         
         Parameters
         ----------
-        obj : numpy.ndarray or nelpy.RegularlySampledAnalogSignalArray
+        data : numpy.ndarray or nelpy.RegularlySampledAnalogSignalArray
             Must have only one non-singleton dimension
         fs : float
             Sampling rate of the data in Hz.
+        timestamps : np.ndarray, optional
+            Timestamps corresponding to the data, in seconds.
+            If None, they will be computed automatically based on the
+            assumption that all the data are one contiguous block.
         lengths : array-like, optional
             Array-like object that specifies the blocksize (in elements)
             of the data that should be treated as a contiguous segment.
@@ -87,8 +94,8 @@ class ContinuousWaveletTransform(WaveletTransform):
             'freqs' are outside the bounds determined by the reference
             set, 'freqs' will be adjusted such that all frequencies in
             'freqs' will be within those bounds.
-        output : string, optional
-            Specify output='asa' to return a nelpy ASA
+        voices_per_octave : float, optional
+            Number of wavelet frequencies per octave
         parallel : boolean, optional
             Whether to run this function in parallel or not, using a
             single process, multithreaded model.
@@ -100,9 +107,8 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         self.fs = fs  # does input validation, nice!
 
-        if output is not None:
-            if not output in ('asa'):
-                raise TypeError("Output type {} not supported".format(output))
+        if voices_per_octave is None:
+            voices_per_octave = 16
 
         if parallel is None:
             parallel = False
@@ -121,9 +127,14 @@ class ContinuousWaveletTransform(WaveletTransform):
             warnings.warn("Module 'pyfftw' not found, using scipy backend")
             convfun = sigtools.fastconv_scipy
 
-        input_asarray, lengths = pre.standard_format_1d_asa(obj, lengths=lengths)
+        # need to copy data since we're mutating it
+        input_asarray = data.squeeze().copy()
         input_asarray -= np.mean(input_asarray)
-        ei = np.insert(np.cumsum(lengths), 0, 0) # epoch indices
+        epoch_bounds = kwargs.pop('epoch_bounds', None)
+        if epoch_bounds is None:
+            raise ValueError("decorator didn't do its job!")
+
+        lengths = (np.diff(epoch_bounds, axis=1) - 1).astype(int)
 
         f_ref = self._norm_radians_to_hz(
                     self.wavelet.generate_omegas(np.min(lengths)))
@@ -150,6 +161,11 @@ class ContinuousWaveletTransform(WaveletTransform):
             f = f_ref[mask]
 
         assert f[0] < f[-1]
+
+        n_octaves = np.log2(f[-1] / f[0])
+        J = np.floor(n_octaves) * voices_per_octave
+        j = np.arange(J+1)
+        f = f[0]*2**(j/voices_per_octave)
         self._frequencies = f
         self._wavelet.fs = self._fs  # Set the wavelet's sampling rate accordingly
 
@@ -174,8 +190,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             if verbose:
                 print("Processing frequency {} Hz".format(freq))
 
-            for ii in range(len(ei)-1): # process within epochs
-                start, stop = ei[ii], ei[ii+1]
+            for start, stop in epoch_bounds: # process within epochs
                 res = convfun(input_asarray[..., start:stop], kernel)
                 out_array[idx, start:stop] = np.abs(res)
 

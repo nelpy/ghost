@@ -563,7 +563,6 @@ def morsespace(gamma, beta, N, *, high=None, eta=None,
     p, _, _ = morseprops(gamma, beta)
 
     r = 1 + 1/(density * p)
-    print(low_freq)
     N = int(np.floor( np.log(high_freq/low_freq) / np.log(r) ))
     #N = int(np.log2(high/low) * voices_per_octave)
     freqs = high_freq * np.ones(N+1) / (r**np.arange(0, N+1))
