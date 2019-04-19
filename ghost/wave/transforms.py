@@ -106,6 +106,7 @@ class ContinuousWaveletTransform(WaveletTransform):
         """
 
         self.fs = fs  # does input validation, nice!
+        self._time = timestamps # already sanitized by decorator
 
         if voices_per_octave is None:
             voices_per_octave = 16
@@ -238,7 +239,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             raise ValueError("timescale must be 'seconds', 'minutes', or"
                             " 'hours' but got {}".format(timescale))
 
-        timevec = np.arange(self._amplitude.shape[1]) / self._fs
+        timevec = self._time
         if timescale == 'minutes':
             timevec /= 60
             xlabel = "Time (min)"

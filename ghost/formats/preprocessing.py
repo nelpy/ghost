@@ -136,8 +136,12 @@ def standardize_asa(func=None, *, x, abscissa_vals=None, fs=None,
                 if abscissa_vals_ is None:
                     logger.info("'{}' not passed in; generating from data".
                                    format(abscissa_vals))
-                    abscissa_vals_ = np.arange(data_.shape[0])
-                    epoch_bounds = np.array([[0, abscissa_vals_[-1] + 1]])
+                    if fs_ is None:
+                        # assume default of 1
+                        fs_default = 1
+                        abscissa_vals_ = np.arange(data_.shape[0], dtype=np.float)/fs_default
+                    else:
+                        abscissa_vals_ = np.arange(data_.shape[0], dtype=np.float)/fs_
                 else:
                     if not isinstance(abscissa_vals_, np.ndarray):
                         raise TypeError("Expected '{}' to be a numpy.ndarray but got {}".
@@ -151,20 +155,20 @@ def standardize_asa(func=None, *, x, abscissa_vals=None, fs=None,
                                         format(abscissa_vals, abscissa_vals_.shape[0],
                                                x, data_.shape[0]))
                     
-                    if fs_ is None:
-                        logging.warning("'{}' not passed in; assuming default of 1 Hz".
-                                       format(fs))
-                        epoch_bounds = get_contiguous_segments(abscissa_vals_,
-                                                               step=1,
-                                                               assume_sorted=True,
-                                                               index=True,
-                                                               inclusive=False)
-                    else:
-                        epoch_bounds = get_contiguous_segments(abscissa_vals_,
-                                                               step=1/fs,
-                                                               assume_sorted=False,
-                                                               index=True,
-                                                               inclusive=False)
+                if fs_ is None:
+                    logging.warning("'{}' not passed in; assuming default of 1 Hz".
+                                    format(fs))
+                    epoch_bounds = get_contiguous_segments(abscissa_vals_,
+                                                            step=1/fs_default,
+                                                            assume_sorted=True,
+                                                            index=True,
+                                                            inclusive=False)
+                else:
+                    epoch_bounds = get_contiguous_segments(abscissa_vals_,
+                                                            step=1/fs_,
+                                                            assume_sorted=False,
+                                                            index=True,
+                                                            inclusive=False)
                 
                 kwargs[abscissa_vals] = abscissa_vals_
                 kwargs['epoch_bounds'] = epoch_bounds

@@ -37,6 +37,7 @@ def get_contiguous_segments(data, *, step=None, assume_sorted=None,
             indices = np.vstack((starts, stops)).T
         else:
             indices = np.vstack((starts, stops + 1)).T
+        indices = indices.astype(int)
         return indices
     return np.asarray(bdries)
 
