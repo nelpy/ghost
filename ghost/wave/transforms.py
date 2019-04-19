@@ -241,10 +241,10 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         timevec = self._time
         if timescale == 'minutes':
-            timevec /= 60
+            timevec = timevec / 60  # do NOT do in-place
             xlabel = "Time (min)"
         if timescale == 'hours':
-            timevec /= 3600
+            timevec = timevec / 3600 # do NOT do in-place
             xlabel = "Time (hr)"
 
         if kind == 'amplitude':
