@@ -89,7 +89,9 @@ class ContinuousWaveletTransform(WaveletTransform):
             'freqs' will be within those bounds.
         voices_per_octave : int, optional
             Number of wavelet frequencies per octave. Must be an even
-            integer between 4 and 48, inclusive.
+            integer between 4 and 48, inclusive. Note that this parameter
+            is not used if frequencies were already specified by the
+            'freqs' option.
             Default is 10.
         parallel : boolean, optional
             Whether to run this function in parallel or not, using a
@@ -106,6 +108,11 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         self.fs = fs  # does input validation, nice!
         self._time = timestamps # already sanitized by decorator
+
+        if freqs is not None and freq_limits is not None:
+            raise ValueError("freq_limits and freqs cannot both be used at the"
+                             " same time. Either specify one or the either, or"
+                             " leave both as unspecified")
 
         if voices_per_octave is None:
             voices_per_octave = 10
@@ -139,31 +146,29 @@ class ContinuousWaveletTransform(WaveletTransform):
         f_ref = self._norm_radians_to_hz(
                     self.wavelet.generate_omegas(np.min(lengths)))
 
-        if freqs is not None and freq_limits is not None:
-            raise ValueError("freq_limits and freqs cannot both be used at the"
-                             " same time. Either specify one or the either, or"
-                             " leave both as unspecified")
-
-        if freqs is not None or freq_limits is not None:
-            if freqs is not None:
-                # just in case user didn't pass in sorted
-                # frequencies after all
-                freqs = np.sort(freqs)
-                freq_bounds = [freqs[0], freqs[-1]]
-            if freq_limits is not None:
-                # just in case user didn't pass in limits as
-                # [lower_bound, upper_bound]
-                freq_limits = np.sort(freq_limits)
-                freq_bounds = [freq_limits[0], freq_limits[-1]]
-
+        if freqs is not None:
+            # just in case user didn't pass in sorted
+            # frequencies after all
+            freqs = np.sort(freqs)
+            freq_bounds = [freqs[0], freqs[-1]]
             lb, ub = self._check_freq_bounds(freq_bounds, f_ref)
-            mask = np.logical_and(f_ref >= lb, f_ref <= ub)
-            f = f_ref[mask]
+            mask = np.logical_and(freqs >= lb, freqs <= ub)
+            f = freqs[mask]
+        elif freq_limits is not None:
+            # just in case user didn't pass in limits as
+            # [lower_bound, upper_bound]
+            freq_limits = np.sort(freq_limits)
+            freq_bounds = [freq_limits[0], freq_limits[-1]]
+            f_low, f_high = self._check_freq_bounds(freq_bounds, f_ref)
+        else:
+            f_low = f_ref[0]
+            f_high = f_ref[-1]
 
-        n_octaves = np.log2(f[-1] / f[0])
-        J = np.floor(n_octaves) * voices_per_octave
-        j = np.arange(J+1)
-        f = f[0]*2**(j/voices_per_octave)
+        if freqs is None:
+            n_octaves = np.log2(f_high / f_low)
+            J = np.floor(n_octaves) * voices_per_octave
+            j = np.arange(J+1)
+            f = f_low * 2**(j/voices_per_octave)
         self._frequencies = f
 
         # make sure wavelet's sampling rate matches the one
