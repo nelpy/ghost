@@ -90,9 +90,20 @@ class Morse(Wavelet):
 
         return psi.squeeze(), psif.squeeze()
 
-    def generate_omegas(self, N, **kwargs):
+    def compute_freq_bounds(self, N, *, p=None, **kwargs):
 
-        return morseutils.morsespace(self._gamma, self._beta, N, **kwargs)
+        if p is None:
+            p = 5
+
+        wh = morseutils.morsehigh(self._gamma, self._beta, **kwargs)
+
+        w0 = morseutils.morsefreq(self._gamma, self._beta)
+        base_length = (2 * np.sqrt(2) * np.sqrt(self._gamma * self._beta)) / w0 * 4
+        max_length = int(np.floor(N / p))
+        max_scale = max_length / base_length
+        wl = w0 / max_scale
+
+        return [wl, wh]
 
     def compute_lengths(self, norm_radian_freqs):
 
@@ -101,7 +112,7 @@ class Morse(Wavelet):
 
         # 4 times the mother wavelet footprint to be safe
         # see Lilly 2017 for reference
-        base_length = (2 * np.sqrt(2) * self._gamma * self._beta
+        base_length = (2 * np.sqrt(2) * np.sqrt(self._gamma * self._beta)
                         / w0 * 4)
 
         scale_fact = w0 / norm_radian_freqs

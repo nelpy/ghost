@@ -145,7 +145,7 @@ def fastconv_fftw(signal, kernel, *, mode=None, fft_length=None,
                              " size of {}".format(M))
     else:   # Choose good default fft_length
         fft_length = 65536
-        while fft_length < M:
+        while fft_length < 2 * M:
             fft_length *= 4
 
     if n_threads is None:

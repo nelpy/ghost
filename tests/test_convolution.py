@@ -13,8 +13,8 @@ def test_fastconv_time_domain():
 
     for mode in ('full', 'same', 'valid'):
         conv = convolve(x, y, mode=mode)
-        conv_fftw = ghost.sigtools.fastconv_fftw(x, y, mode=mode)
-        conv_scipy = ghost.sigtools.fastconv_scipy(x, y, mode=mode)
+        conv_fftw = ghost.sigtools.fastconv_fftw(x, y, mode=mode, fft_length=2048)
+        conv_scipy = ghost.sigtools.fastconv_scipy(x, y, mode=mode, fft_length=2048)
 
         assert np.allclose(conv_scipy, conv)
         assert np.allclose(conv_fftw, conv)

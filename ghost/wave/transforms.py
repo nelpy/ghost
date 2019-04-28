@@ -137,49 +137,52 @@ class ContinuousWaveletTransform(WaveletTransform):
             logging.warn("Module 'pyfftw' not found, using scipy backend")
             convfun = sigtools.fastconv_scipy
 
-        # need to copy data since we're mutating it
-        input_asarray = data.squeeze().copy()
+        # This will always return a copy, which is good because
+        # we mutate the data
+        input_asarray = data.squeeze().astype(np.float64)
         input_asarray -= np.mean(input_asarray)
         epoch_bounds = kwargs.pop('epoch_bounds', None)
         lengths = (np.diff(epoch_bounds, axis=1)).astype(int)
 
-        f_ref = self._norm_radians_to_hz(
-                    self.wavelet.generate_omegas(np.min(lengths)))
+        freq_bounds_ref = self._norm_radians_to_hz(
+                             self.wavelet.compute_freq_bounds(
+                                 np.min(lengths)))
 
         if freqs is not None:
             # just in case user didn't pass in sorted
             # frequencies after all
             freqs = np.sort(freqs)
-            freq_bounds = [freqs[0], freqs[-1]]
-            lb, ub = self._check_freq_bounds(freq_bounds, f_ref)
+            freq_bounds = [freqs[0], freqs[1]]
+            lb, ub = self._check_freq_bounds(freq_bounds, freq_bounds_ref)
             mask = np.logical_and(freqs >= lb, freqs <= ub)
             f = freqs[mask]
         elif freq_limits is not None:
             # just in case user didn't pass in limits as
             # [lower_bound, upper_bound]
             freq_limits = np.sort(freq_limits)
-            freq_bounds = [freq_limits[0], freq_limits[-1]]
-            f_low, f_high = self._check_freq_bounds(freq_bounds, f_ref)
+            freq_bounds = [freq_limits[0], freq_limits[1]]
+            f_low, f_high = self._check_freq_bounds(freq_bounds, freq_bounds_ref)
         else:
-            f_low = f_ref[0]
-            f_high = f_ref[-1]
+            f_low = freq_bounds_ref[0]
+            f_high = freq_bounds_ref[1]
 
         if freqs is None:
             n_octaves = np.log2(f_high / f_low)
-            J = np.floor(n_octaves) * voices_per_octave
+            J = np.floor(n_octaves * voices_per_octave)
             j = np.arange(J+1)
-            f = f_low * 2**(j/voices_per_octave)
-        self._frequencies = f
+            f = f_high / 2**(j/voices_per_octave)
+        frequencies = f
+        self._frequencies = np.flip(f) # Store as ascending order
 
         # make sure wavelet's sampling rate matches the one
         # this object uses
         self._wavelet.fs = self._fs
 
         wavelet_lengths = self.wavelet.compute_lengths(
-                              self._hz_to_norm_radians(self._frequencies)).tolist()
+                              self._hz_to_norm_radians(frequencies)).tolist()
 
         # Set up array as C contiguous since we will be iterating row-by-row
-        out_array = np.zeros((len(self._frequencies), input_asarray.shape[-1]))
+        out_array = np.zeros((len(frequencies), input_asarray.shape[-1]))
 
         def wavelet_conv(param):
             """The function that does the wavelet convolution"""
@@ -208,8 +211,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             # Order the frequencies such that the transform matrix starts
             # from the high frequencies at the origin
             it = [(idx, freq, length) for idx, (freq, length) in 
-                    enumerate(zip(np.flip(self._frequencies), 
-                                  np.flip(wavelet_lengths)))]
+                    enumerate(zip(frequencies, wavelet_lengths))]
             start_time = time.time()
             pool.map(wavelet_conv, it, chunksize=1)
             pool.close()
@@ -218,8 +220,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             start_time = time.time()
             # Order the frequencies such that the transform matrix starts
             # from the high frequencies at the origin
-            for ii, (freq, length) in enumerate(
-                zip(np.flip(self._frequencies), np.flip(wavelet_lengths))):
+            for ii, (freq, length) in enumerate(zip(frequencies, wavelet_lengths)):
                 wavelet_conv((ii, freq, length))
 
         if verbose:
@@ -405,19 +406,19 @@ class ContinuousWaveletTransform(WaveletTransform):
 
     def _norm_radians_to_hz(self, val):
 
-        return val / np.pi * self._fs / 2
+        return np.array(val) / np.pi * self._fs / 2.0
 
     def _hz_to_norm_radians(self, val):
 
-        return val / (self._fs / 2) * np.pi
+        return np.array(val) / (self._fs / 2.0) * np.pi
 
-    def _check_freq_bounds(self, freq_bounds, freqs_ref):
+    def _check_freq_bounds(self, freq_bounds, freq_bounds_ref):
 
         # Inputs are Hz, outputs are Hz
         lb = freq_bounds[0]
-        ub = freq_bounds[-1]
-        lb_ref = freqs_ref[0]
-        ub_ref = freqs_ref[-1]
+        ub = freq_bounds[1]
+        lb_ref = freq_bounds_ref[0]
+        ub_ref = freq_bounds_ref[1]
 
         if lb < lb_ref:
             logging.warning("Specified lower bound was {:.3f} Hz but lower bound"

@@ -149,7 +149,7 @@ def standardize_asa(func=None, *, x, abscissa_vals=None, fs=None,
                     if not isinstance(abscissa_vals_, np.ndarray):
                         raise TypeError("Expected '{}' to be a numpy.ndarray but got {}".
                                        format(abscissa_vals, type(abscissa_vals_)))
-                    if not abscissa_vals_.ndim != 1:
+                    if abscissa_vals_.ndim != 1:
                         raise ValueError("'{}' should have at most one non-singleton"
                                         " dimension".format(abscissa_vals))
                     if abscissa_vals_.shape[0] != data_.shape[0]:
