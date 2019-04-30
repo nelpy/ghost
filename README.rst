@@ -1,7 +1,11 @@
-=====
-Ghost
-=====
+.. class:: no-web
 
+    .. image:: https://raw.githubusercontent.com/nelpy/ghost/master/ghost-title.png
+        :target: https://github.com/nelpy/ghost
+        :alt: ghost-logo
+        :width: 10%
+        :align: right
+| 
 ghost (**G**\ rand **H**\ ub **O**\ f **S**\ pectral **T**\ ools) is the friendly phantom that helps you do signal processing on neuroscience data, especially spectral analysis ;)
 
 It can be used as a standalone package for numpy arrays, or as a companion plugin module to nelpy. Currently it supports rudimentary wavelet analysis. Planned features include multitaper Fourier methods, phase-amplitude & phase-phase coupling, current source density analysis, and more.
@@ -46,12 +50,4 @@ If you have a nelpy ``AnalogSignalArray``, you can do:
     spec = wt.cwt(X, fs=X.fs, output='asa')
 
 And that's it! Short and simple.
-
-.. class:: no-web
-
-    .. image:: https://raw.githubusercontent.com/nelpy/ghost/master/ghost.png
-        :target: https://github.com/nelpy/ghost
-        :alt: ghost-logo
-        :width: 10%
-        :align: right
         
