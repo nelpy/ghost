@@ -5,7 +5,9 @@
         :alt: ghost-logo
         :width: 10%
         :align: right
+        
 | 
+
 ghost (**G**\ rand **H**\ ub **O**\ f **S**\ pectral **T**\ ools) is the friendly phantom that helps you do signal processing on neuroscience data, especially spectral analysis ;)
 
 It can be used as a standalone package for numpy arrays, or as a companion plugin module to nelpy. Currently it supports rudimentary wavelet analysis. Planned features include multitaper Fourier methods, phase-amplitude & phase-phase coupling, current source density analysis, and more.
@@ -30,24 +32,34 @@ If you are a developer, run
 Example
 =======
 
-Suppose you have a numpy array ``X`` on which you want to run a continuous wavelet transform:
+Suppose you have a numpy array named ``X`` which was sampled at 1 kHz, on which you want to run a continuous wavelet transform:
 
 .. code-block:: python
 
-    import ghost.wave
+    from ghost.wave import ContinuousWaveletTransform
     
-    wt = ghost.wave.ContinuousWaveletTransform()
-    fs = 1000
-    spec = wt.cwt(X, fs=fs)
-
-If you have a nelpy ``AnalogSignalArray``, you can do:
+    cwt = ContinuousWaveletTransform()
+    cwt.transform(X, fs=1000)
+    
+If you have a nelpy ``AnalogSignalArray`` named ``asa``, you can simply do:
 
 .. code-block:: python
 
-    import ghost.wave
+    from ghost.wave import ContinuousWaveletTransform
     
-    wt = ghost.wave.ContinuousWaveletTransform()
-    spec = wt.cwt(X, fs=X.fs, output='asa')
+    cwt = ContinuousWaveletTransform()
+    cwt.transform(asa)
+    
+In either case, you can obtain the spectrogram by calling ``plot``:
+
+.. code-block:: python
+
+    cwt.plot(logscale=False, 
+             standardize=True, 
+             cmap=plt.cm.Spectral_r,
+             levels=300, 
+             vmin=0, 
+             vmax=10)
 
 And that's it! Short and simple.
         
