@@ -46,3 +46,12 @@ If you have a nelpy ``AnalogSignalArray``, you can do:
     spec = wt.cwt(X, fs=X.fs, output='asa')
 
 And that's it! Short and simple.
+
+.. class:: no-web
+
+    .. image:: https://raw.githubusercontent.com/nelpy/ghost/master/ghost.png
+        :target: https://github.com/nelpy/ghost
+        :alt: ghost-logo
+        :width: 10%
+        :align: right
+        
