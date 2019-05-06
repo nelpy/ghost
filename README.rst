@@ -17,17 +17,19 @@ ghost tries to be as lightweight yet fast as possible. Suggestions for increasin
 Installation
 ============
 
-To install this package, please clone this repo and run
+To install this package, please run the following commands
 
 .. code-block:: bash
 
-    $ python setup.py install
+    $ git clone https://github.com/nelpy/ghost.git
+    $ cd ghost
+    $ pip install
 
-If you are a developer, run
+If you are a developer and would like to modify the code, replace the last command above with
 
 .. code-block:: bash
 
-    $ python setup.py develop
+    $ pip install -e .
 
 Example
 =======
