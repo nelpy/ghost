@@ -591,9 +591,9 @@ def _cwtft(data, wavelet):
 
         res = np.fft.ifft(np.fft.fft(chunk, n=N) * psif)
 
-        rel_start = buf_start - seg_start
-        rel_end = min(N - M, len(chunk))
-        cwt_chunk = res[rel_start:rel_end]
+        res_start = buf_start - seg_start
+        res_end = min(N - M, len(chunk))
+        cwt_chunk = res[res_start:res_end]
 
         cwt[buf_start:buf_start + len(cwt_chunk)] = cwt_chunk
 
