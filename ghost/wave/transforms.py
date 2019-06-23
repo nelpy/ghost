@@ -589,7 +589,7 @@ def _cwtft(data, wavelet):
 
         segment = data[seg_start:seg_end]
 
-        chunk = np.fft.ifft(np.fft.fft(segment, N) * psif)
+        chunk = np.fft.ifft(np.fft.fft(segment, n=N) * psif)
 
         rel_start = buf_start - seg_start
         rel_end = min(N - M, len(segment))
