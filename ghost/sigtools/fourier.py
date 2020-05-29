@@ -2,26 +2,26 @@
 
 import logging
 import numpy as np
-import scipy.fftpack._fftpack as sff
+# import scipy.fftpack._fftpack as sff
 from . import convolution
 
-__all__ = ['clean_scipy_cache', 'chirpz_dft']
+__all__ = ['chirpz_dft']
 
-def clean_scipy_cache():
-    sff.destroy_zfft_cache()
-    sff.destroy_zfftnd_cache()
-    sff.destroy_drfft_cache()
-    sff.destroy_cfft_cache()
-    sff.destroy_cfftnd_cache()
-    sff.destroy_rfft_cache()
-    sff.destroy_ddct2_cache()
-    sff.destroy_ddct1_cache()
-    sff.destroy_dct2_cache()
-    sff.destroy_dct1_cache()
-    sff.destroy_ddst2_cache()
-    sff.destroy_ddst1_cache()
-    sff.destroy_dst2_cache()
-    sff.destroy_dst1_cache()
+# def clean_scipy_cache():
+#     sff.destroy_zfft_cache()
+#     sff.destroy_zfftnd_cache()
+#     sff.destroy_drfft_cache()
+#     sff.destroy_cfft_cache()
+#     sff.destroy_cfftnd_cache()
+#     sff.destroy_rfft_cache()
+#     sff.destroy_ddct2_cache()
+#     sff.destroy_ddct1_cache()
+#     sff.destroy_dct2_cache()
+#     sff.destroy_dct1_cache()
+#     sff.destroy_ddst2_cache()
+#     sff.destroy_ddst1_cache()
+#     sff.destroy_dst2_cache()
+#     sff.destroy_dst1_cache()
 
 def chirpz_dft(x):
     """Computes the DFT of a signal using the Chirp Z-transform.

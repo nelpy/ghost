@@ -8,7 +8,7 @@ from scipy.fftpack import next_fast_len, fft, ifft
 from scipy.signal import fftconvolve
 from multiprocessing import cpu_count
 
-from .fourier import clean_scipy_cache
+# from .fourier import clean_scipy_cache
 
 try:
     import pyfftw
@@ -78,7 +78,7 @@ def fastconv_scipy(signal, kernel, *, mode=None, fft_length=None):
         conv_chunk = ifft(conv_fd)[..., :length + M - 1]
         res[..., start:start+len(conv_chunk)] += conv_chunk
         # Usually the cache is to blame for memory errors
-        clean_scipy_cache()
+        # clean_scipy_cache()
 
     if mode == 'full':
         newsize = tot_length
@@ -278,7 +278,7 @@ def fastconv_freq_scipy(signal_td, kernel_fd, kernel_len,
         conv_td = ifft(conv_fd)[..., :length+M-1]
         res[..., start:start+len(conv_td)] += conv_td
         # Usually the cache is to blame for memory errors
-        clean_scipy_cache()
+        # clean_scipy_cache()
 
     if mode == 'full':
         newsize = tot_length
