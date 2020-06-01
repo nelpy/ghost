@@ -52,7 +52,190 @@ class ContinuousWaveletTransform(WaveletTransform):
         self._fs = None
         self._amplitude = None
         self._power = None
-def plot(self, *, kind=None, timescale=None, logscale=None, 
+        self._time = None
+
+    @pre.standardize_asa(x='data', fs='fs', n_signals=1, 
+                         class_method=True, abscissa_vals='timestamps')
+    def transform(self, data, *, timestamps=None, fs=None, freq_limits=None,
+                  freqs=None, voices_per_octave=None, parallel=None,
+                  verbose=None, method='ola', **kwargs):
+        """Does a continuous wavelet transform.
+
+        Parameters
+        ----------
+        data : numpy.ndarray or nelpy.RegularlySampledAnalogSignalArray
+            Must have only one non-singleton dimension
+        fs : float
+            Sampling rate of the data in Hz.
+        timestamps : np.ndarray, optional
+            Timestamps corresponding to the data, in seconds.
+            If None, they will be computed automatically based on the
+            assumption that all the data are one contiguous block.
+        freq_limits : list, optional
+            List of [lower_bound, upper_bound] for frequencies to use,
+            in units of Hz. Note that a reference set of frequencies
+            is generated on the shortest segment of data since that
+            determines the lowest frequency that can be used. If the
+            bounds specified by 'freq_limits' are outside the bounds
+            determined by the reference set, 'freq_limits' will be
+            adjusted to be within the bounds of the reference set.
+        freqs : array-like, optional
+            Frequencies to analyze, in units of Hz.
+            Note that a reference set of frequencies is computed on the
+            shortest segment of data since that determines the lowest
+            frequency that can be used. If any frequencies specified in
+            'freqs' are outside the bounds determined by the reference
+            set, 'freqs' will be adjusted such that all frequencies in
+            'freqs' will be within those bounds.
+        voices_per_octave : int, optional
+            Number of wavelet frequencies per octave. Must be an even
+            integer between 4 and 48, inclusive. Note that this parameter
+            is not used if frequencies were already specified by the
+            'freqs' option.
+            Default is 10.
+        parallel : boolean, optional
+            Whether to run this function in parallel or not, using a
+            single process, multithreaded model.
+            Default is False.
+        verbose : boolean, optional
+            Whether to print messages displaying this function's progress.
+            Default is False.
+
+        Returns
+        -------
+        None
+        """
+
+        self.fs = fs  # does input validation, nice!
+        self._time = timestamps # already sanitized by decorator
+
+        if freqs is not None and freq_limits is not None:
+            raise ValueError("freq_limits and freqs cannot both be used at the"
+                             " same time. Either specify one or the either, or"
+                             " leave both as unspecified")
+
+        if voices_per_octave is None:
+            voices_per_octave = 10
+        if voices_per_octave not in np.arange(4, 50, step=2):
+            raise ValueError("'voices_per_octave' must be an even number"
+                             " between 4 and 48, inclusive")
+
+        if parallel is None:
+            parallel = False
+        if parallel not in (True, False):
+            raise ValueError("'parallel' must be either True or False")
+
+        if verbose is None:
+            verbose = False
+        if verbose not in (True, False):
+            raise ValueError("'verbose' must be either True or False")
+
+        try:
+            import pyfftw
+            convfun = sigtools.fastconv_fftw
+        except:
+            logging.warn("Module 'pyfftw' not found, using scipy backend")
+            convfun = sigtools.fastconv_scipy
+
+        # This will always return a copy, which is good because
+        # we mutate the data
+        input_asarray = data.squeeze().astype(np.float64)
+        input_asarray -= np.mean(input_asarray)
+        epoch_bounds = kwargs.pop('epoch_bounds', None)
+        lengths = (np.diff(epoch_bounds, axis=1)).astype(int)
+
+        freq_bounds_ref = self._norm_radians_to_hz(
+                             self.wavelet.compute_freq_bounds(
+                                 np.min(lengths)))
+
+        if freqs is not None:
+            # just in case user didn't pass in sorted
+            # frequencies after all
+            freqs = np.sort(freqs)
+            freq_bounds = [freqs[0], freqs[1]]
+            lb, ub = self._check_freq_bounds(freq_bounds, freq_bounds_ref)
+            mask = np.logical_and(freqs >= lb, freqs <= ub)
+            f = freqs[mask]
+        elif freq_limits is not None:
+            # just in case user didn't pass in limits as
+            # [lower_bound, upper_bound]
+            freq_limits = np.sort(freq_limits)
+            freq_bounds = [freq_limits[0], freq_limits[1]]
+            f_low, f_high = self._check_freq_bounds(freq_bounds, freq_bounds_ref)
+        else:
+            f_low = freq_bounds_ref[0]
+            f_high = freq_bounds_ref[1]
+
+        if freqs is None:
+            n_octaves = np.log2(f_high / f_low)
+            J = np.floor(n_octaves * voices_per_octave)
+            j = np.arange(J+1)
+            f = f_high / 2**(j/voices_per_octave)
+        frequencies = f
+        self._frequencies = np.flip(f) # Store as ascending order
+
+        # make sure wavelet's sampling rate matches the one
+        # this object uses
+        self._wavelet.fs = self._fs
+
+        wavelet_lengths = self.wavelet.compute_lengths(
+                              self._hz_to_norm_radians(frequencies)).tolist()
+
+        # Set up array as C contiguous since we will be iterating row-by-row
+        out_array = np.zeros((len(frequencies), input_asarray.shape[-1]))
+
+        def wavelet_conv(param):
+            """The function that does the wavelet convolution"""
+
+            idx, freq, length = param
+            # We need to copy because we might have multiple instances of this function
+            # running in parallel. Each instance needs its own wavelet with which to
+            # do the convolution
+            wv = self._wavelet.copy()
+            wv.norm_radian_freq = self._hz_to_norm_radians(freq)
+
+            kernel, _ = wv(length)
+
+            if verbose:
+                print("Processing frequency {} Hz".format(freq))
+
+            for start, stop in epoch_bounds: # process within epochs
+                res = convfun(input_asarray[..., start:stop], kernel)
+                out_array[idx, start:stop] = np.abs(res)
+
+        if method == 'ola':
+            if parallel:
+                logging.warn(("You may not get as large a speedup as you hoped for by"
+                            " running this function in parallel (single process,"
+                            " multithreaded). Experimentation recommended."))
+                pool = ThreadPool(cpu_count())
+                # Order the frequencies such that the transform matrix starts
+                # from the high frequencies at the origin
+                it = [(idx, freq, length) for idx, (freq, length) in 
+                        enumerate(zip(frequencies, wavelet_lengths))]
+                start_time = time.time()
+                pool.map(wavelet_conv, it, chunksize=1)
+                pool.close()
+                pool.join()
+            else:
+                start_time = time.time()
+                # Order the frequencies such that the transform matrix starts
+                # from the high frequencies at the origin
+                for ii, (freq, length) in enumerate(zip(frequencies, wavelet_lengths)):
+                    wavelet_conv((ii, freq, length))
+        elif method == 'full':
+            cwt_full(self._wavelet, self._hz_to_norm_radians(frequencies), input_asarray, out_array)
+        else:
+            raise ValueError(f"Invalid method type {method}")
+
+        if verbose:
+            print("Elapsed time (only wavelet convolution): {} seconds"
+                  " to analyze {} frequencies".
+                  format(time.time() - start_time, self._frequencies.size))
+
+        self._amplitude = out_array
+
+    def plot(self, *, kind=None, timescale=None, logscale=None, 
              standardize=None, relative_time=None, center_time=None,
              time_limits=None, freq_limits=None,
              ax=None, **kwargs):
@@ -352,3 +535,51 @@ def plot(self, *, kind=None, timescale=None, logscale=None,
 
         raise ValueError("Overriding the time attribute is not"
                          " allowed")
+
+
+def cwt_full(wavelet, frequencies, in_array, out_array):
+
+
+    try:
+        import pyfftw
+    except:
+        raise ImportError("This method requires pyfftw")
+
+    if not in_array.ndim == 1:
+        raise ValueError(f"Input array has {in_array.ndim} dimensions. Must be 1")
+
+    print("Computing wavelet function for all scales...")
+    N = len(in_array)
+    scales = wavelet.freq_to_scale(frequencies)
+    psifs = wavelet.freq_domain(N, scales)
+
+    X = pyfftw.zeros_aligned(N, dtype='complex128')
+    fft_sig = pyfftw.FFTW( X, X,
+                           axes=(-1,),
+                           direction='FFTW_FORWARD',
+                           flags=['FFTW_ESTIMATE'],
+                           threads=cpu_count())
+    X[:] = in_array
+    fft_sig(normalise_idft=True)
+
+
+    print("Computing wavelet transform...")
+    cwt_coefs = pyfftw.zeros_aligned(out_array.shape, dtype='complex128')
+    fft_res = pyfftw.FFTW( cwt_coefs, cwt_coefs,
+                           axes=(-1,),
+                           direction='FFTW_BACKWARD',
+                           flags=['FFTW_ESTIMATE'],
+                           threads=cpu_count())
+
+    cwt_coefs[:] = psifs
+    cwt_coefs *= X
+
+    fft_res(normalise_idft=True)
+
+    out_array[:] = np.abs(cwt_coefs)
+
+
+
+
+
+    

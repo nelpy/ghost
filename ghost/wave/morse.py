@@ -90,6 +90,39 @@ class Morse(Wavelet):
 
         return psi.squeeze(), psif.squeeze()
 
+    def freq_domain(self, N, scales, *, derivative=False):
+        
+        gamma = self.gamma
+        beta = self.beta
+        scales = np.atleast_2d(scales).reshape((-1, 1))
+
+        omega = np.fft.fftfreq(N) * 2 * np.pi
+        x = scales * omega
+        log_a = np.log(2) + (beta/gamma) * (1+np.log(gamma) - np.log(beta))
+        
+        H = np.zeros_like(omega)
+        H[omega > 0] = 1
+        
+        with np.errstate(invalid='ignore', divide='ignore'):
+            log_psif = log_a + beta * np.log(np.abs(x)) - np.abs(x)**gamma
+            psif = np.exp(log_psif) * H
+
+        assert np.all(np.isfinite(psif))
+        
+        if derivative:
+            return 1j * omega * psif
+        
+        return psif
+
+    def freq_to_scale(self, freqs):
+
+        fm = np.exp( (np.log(self._beta) - np.log(self._gamma)) / self._gamma )
+
+        # input should be in normalized radian frequencies
+        freqs = np.atleast_1d(freqs)
+        
+        return fm / freqs
+
     def compute_freq_bounds(self, N, *, p=None, **kwargs):
 
         if p is None:
