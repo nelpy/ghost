@@ -519,7 +519,7 @@ class ContinuousWaveletTransform(WaveletTransform):
                          " allowed")
 
     @property
-    def time(self, val):
+    def time(self):
 
         return self._time
 
@@ -528,3 +528,73 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         raise ValueError("Overriding the time attribute is not"
                          " allowed")
+
+def _cwtft(data, wavelet):
+
+    """
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Input data
+
+    wavelet : of type ghost.Wavelet
+        Wavelet to use for the CWT
+
+    Returns
+    -------
+    cwt : numpy.ndarray
+        The (complex) continuous wavelet transform
+
+    Notes
+    -----
+    This function is a specialized method intended specifically for
+    the CWT and was written with the following principles/motivations
+    in mind:
+
+    (1) We want to compute the wavelet transform as numerically exact as
+    possible. For most cases, we can compute a wavelet's time-domain
+    representation over its footprint/effective support and use overlap-add
+    for efficient chunked convolution. However, this strategy can be
+    problematic for analytic wavelets. If the wavelet's frequency response
+    is not zero at the input data's Nyquist frequency, there will be
+    Gibbs' phenomenon when taking the DFT of the wavelet's time-domain
+    representation. Then the wavelet is no longer numerically analytic.
+
+    (2) We therefore compute the wavelet directly in the frequency domain,
+    with a length longer than its footprint/effective support. Then we take
+    overlapping data chunks, similar to the overlap-save method. However,
+    unlike overlap-save our method discards BOTH edges of each chunk to
+    deal with boundary effects. Excluding the edges at the very ends of the
+    computed wavelet transform, this result is identical to that obtained
+    if the transform were computed over the data in one long chunk. Thus this
+    method is an efficient way to calculate the wavelet transform on chunks
+    of data while handling potential numerical issues associated with
+    analytic wavelets.
+    """
+
+    M = wavelet.footprint
+    N = 65536 # good default FFT length for most frequencies of interest
+    while N < 10*M: # make sure sufficiently long
+        N *= 4
+
+    start, stop = 0, len(data)
+    buf_starts = range(start, stop, N-2*M)
+
+    psif = wavelet(N).conj()
+    cwt = np.empty(len(data), dtype='<c16')
+    for buf_start in buf_starts:
+
+        seg_start = max(buf_start - M, start)
+        seg_end = min(seg_start + N, stop)
+
+        chunk = data[seg_start:seg_end]
+
+        res = np.fft.ifft(np.fft.fft(chunk, n=N) * psif)
+
+        res_start = buf_start - seg_start
+        res_end = min(N - M, len(chunk))
+        cwt_chunk = res[res_start:res_end]
+
+        cwt[buf_start:buf_start + len(cwt_chunk)] = cwt_chunk
+
+    return cwt
