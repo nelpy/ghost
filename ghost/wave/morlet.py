@@ -2,7 +2,6 @@
 
 import numpy as np
 from .wavelet import Wavelet
-from scipy.misc import logsumexp
 import copy
 
 __all__ = ['Morlet']
