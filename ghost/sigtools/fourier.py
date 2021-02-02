@@ -2,7 +2,7 @@
 
 import logging
 import numpy as np
-import scipy.fftpack._fftpack as sff
+from scipy.fftpack import fft as sff
 from . import convolution
 
 __all__ = ['clean_scipy_cache', 'chirpz_dft']
