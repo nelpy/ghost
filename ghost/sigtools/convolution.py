@@ -4,7 +4,7 @@ __all__ = ['fastconv_scipy', 'fastconv_fftw',
            'fastconv_freq_scipy', 'fastconv_freq_fftw']
 
 import numpy as np
-from scipy.fftpack import next_fast_len, fft, ifft
+from scipy.fft import next_fast_len, fft, ifft
 from scipy.signal import fftconvolve
 from multiprocessing import cpu_count
 
