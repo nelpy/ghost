@@ -172,7 +172,7 @@ class ContinuousWaveletTransform(WaveletTransform):
             j = np.arange(J+1)
             f = f_high / 2**(j/voices_per_octave)
         frequencies = f
-        self._frequencies = np.flip(f) # Store as ascending order
+        self._frequencies = frequencies
 
         # make sure wavelet's sampling rate matches the one
         # this object uses
@@ -363,11 +363,9 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         timevec = self._time[time_slice]
         freqvec = self._frequencies[freq_slice]
-        data = data[data_freq_slice, time_slice]
-
         if standardize:
-            data = ((data - data.mean(axis=1, keepdims=True)) 
-                     / data.std(axis=1, keepdims=True))
+            data = (data - data.mean()) / data.std()
+        data = data[data_freq_slice, time_slice]
 
         if timescale == 'milliseconds':
             timevec = timevec * 1000
