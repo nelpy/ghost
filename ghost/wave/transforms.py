@@ -350,9 +350,8 @@ class ContinuousWaveletTransform(WaveletTransform):
 
         if freq_limits is None:
             freq_slice = slice(None)
-            data_freq_slice = slice(None)
         else:
-            freq_slice, data_freq_slice = self._restrict_plot_freq(freq_limits)
+            freq_slice = self._restrict_plot_freq(freq_limits)
 
         if kind == 'amplitude':
             data = self._amplitude
@@ -365,7 +364,7 @@ class ContinuousWaveletTransform(WaveletTransform):
         freqvec = self._frequencies[freq_slice]
         if standardize:
             data = (data - data.mean()) / data.std()
-        data = data[data_freq_slice, time_slice]
+        data = data[freq_slice, time_slice]
 
         if timescale == 'milliseconds':
             timevec = timevec * 1000
@@ -393,7 +392,7 @@ class ContinuousWaveletTransform(WaveletTransform):
         if ax is None:
             ax = plt.gca()
 
-        time, freq = np.meshgrid(timevec, np.flip(freqvec))
+        time, freq = np.meshgrid(timevec, freqvec)
         ax.contourf(time, freq, data, **kwargs)
         if logscale:
             ax.set_yscale('log')
@@ -447,7 +446,7 @@ class ContinuousWaveletTransform(WaveletTransform):
         fstart = len(self._frequencies) - f1
         fstop = len(self._frequencies) - f0
 
-        return slice(f0, f1), slice(fstart, fstop)
+        return slice(fstart, fstop)
 
     @property
     def fs(self):
