@@ -442,7 +442,7 @@ class ContinuousWaveletTransform(WaveletTransform):
 
     def _restrict_plot_freq(self, limits):
 
-        f0, f1 = np.searchsorted(self._frequencies, limits)
+        f0, f1 = np.searchsorted(self._frequencies[::-1], limits)
         fstart = len(self._frequencies) - f1
         fstop = len(self._frequencies) - f0
 
